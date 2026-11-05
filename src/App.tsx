@@ -358,16 +358,19 @@ export default function App() {
   const sidebarNavItems: {
     id: NavTab;
     label: string;
+    shortLabel: string;
     icon: React.ReactNode;
   }[] = [
     {
       id: 'dashboard',
       label: 'Dashboard',
+      shortLabel: 'Dashboard',
       icon: <LayoutGrid className="w-5 h-5 shrink-0" />,
     },
     {
       id: 'matriks',
       label: 'Data Matriks',
+      shortLabel: 'Matriks',
       icon: <Layers className="w-5 h-5 shrink-0" />,
     },
     ...(userRole === 'ADMIN'
@@ -375,6 +378,7 @@ export default function App() {
           {
             id: 'verifikasi' as NavTab,
             label: 'Verifikasi',
+            shortLabel: 'Verifikasi',
             icon: <ShieldCheck className="w-5 h-5 shrink-0" />,
           },
         ]
@@ -382,6 +386,7 @@ export default function App() {
     {
       id: 'laporan-export',
       label: 'Laporan',
+      shortLabel: 'Laporan',
       icon: <FileSpreadsheet className="w-5 h-5 shrink-0" />,
     },
     ...(userRole === 'ADMIN'
@@ -389,6 +394,7 @@ export default function App() {
           {
             id: 'pengaturan-periode' as NavTab,
             label: 'Pengaturan Periode',
+            shortLabel: 'Periode',
             icon: <CalendarCog className="w-5 h-5 shrink-0" />,
           },
         ]
@@ -396,6 +402,7 @@ export default function App() {
     {
       id: 'audit-log',
       label: 'Riwayat & Audit Log',
+      shortLabel: 'Riwayat',
       icon: <History className="w-5 h-5 shrink-0" />,
     },
     ...(userRole === 'ADMIN'
@@ -403,6 +410,7 @@ export default function App() {
           {
             id: 'manajemen-user' as NavTab,
             label: 'Manajemen User',
+            shortLabel: 'User',
             icon: <Users className="w-5 h-5 shrink-0" />,
           },
         ]
@@ -434,9 +442,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full bg-[#F3F6FD] text-slate-900 flex overflow-x-hidden">
-      {/* LEFT SIDEBAR: Saat di-hide (collapsed), hanya menampilkan Logo, Icon Menu, Icon Keluar, dan Hamburger di bagian bawah */}
+      {/* LEFT SIDEBAR (Desktop & Tablet >= md): Di HP otomatis pindah ke Bottom Dock */}
       <aside
-        className={`sticky top-0 inset-y-0 left-0 z-40 h-screen bg-gradient-to-b from-[#F4F8FF] via-[#F7FAFF] to-[#EBF2FF] border-r border-slate-200/80 flex flex-col justify-between transition-all duration-200 ease-out overflow-hidden shrink-0 ${
+        className={`hidden md:flex sticky top-0 inset-y-0 left-0 z-40 h-screen bg-gradient-to-b from-[#F4F8FF] via-[#F7FAFF] to-[#EBF2FF] border-r border-slate-200/80 flex-col justify-between transition-all duration-200 ease-out overflow-hidden shrink-0 ${
           sidebarExpanded ? 'w-64' : 'w-20'
         }`}
       >
@@ -447,7 +455,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Bagian Atas Sidebar: Logo Pemkab Blora + Nama Aplikasi E-Lamis Blora + Menu Navigasi */}
+        {/* Bagian Atas Sidebar: Logo Pemkab Blora + Nama Aplikasi OPTIMIS + Menu Navigasi */}
         <div
           className={`relative z-10 flex flex-col ${
             sidebarExpanded ? 'p-5 space-y-6 w-64' : 'py-5 px-2.5 space-y-6 w-20 items-center'
@@ -563,69 +571,129 @@ export default function App() {
       {/* MAIN CONTENT VIEWPORT (Fleksibel & Dinamis Mengikuti Ukuran Layar) */}
       <div className="flex-1 min-w-0 w-full flex flex-col">
         {/* Top Context Header */}
-        <header className="w-full px-4 sm:px-6 lg:px-8 pt-5 pb-3 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          {/* Kiri Atas: Judul Laman & Status Aplikasi E-Lamis Blora */}
+        <header className="w-full px-3.5 sm:px-6 lg:px-8 pt-3.5 sm:pt-5 pb-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 sm:gap-4">
+          {/* Baris Identitas Khusus Layar HP (< md): Logo Blora + OPTIMIS di Kiri, Status + Notifikasi + Profil di Kanan */}
+          <div className="flex md:hidden items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <BloraShieldLogo className="w-10 h-10 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-base font-extrabold tracking-tight text-slate-900 leading-tight truncate">
+                  OPTIMIS
+                </p>
+                <p className="text-[11px] font-semibold text-[#2563EB] leading-tight truncate">
+                  Pengentasan Kemiskinan Blora
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Status Koneksi di HP */}
+              <div
+                className="px-2.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-700 flex items-center gap-1.5 text-[11px] font-bold select-none"
+                aria-label="Status Koneksi"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Terhubung</span>
+              </div>
+
+              {/* Lonceng Notifikasi di HP */}
+              <button
+                type="button"
+                onClick={() => {
+                  setNotifMenuOpen(!notifMenuOpen);
+                  setProfileMenuOpen(false);
+                }}
+                className="w-10 h-10 rounded-xl bg-white border border-slate-200/90 shadow-xs flex items-center justify-center text-slate-700 active:scale-95 transition-all cursor-pointer relative"
+                aria-label="Notifikasi Aktivitas"
+              >
+                <Bell className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-[#F3F6FD]">
+                  {Math.min(9, auditLogs.length)}
+                </span>
+              </button>
+
+              {/* Profil di HP */}
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileMenuOpen(!profileMenuOpen);
+                  setNotifMenuOpen(false);
+                }}
+                className="p-1 pr-2 rounded-xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                aria-label="Menu Akun Pengguna"
+              >
+                <DefaultProfileAvatar className="w-8 h-8" />
+                <ChevronDown className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+          </div>
+
+          {/* Kiri Atas: Judul Laman & Status Aplikasi OPTIMIS */}
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+            <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-slate-900 leading-snug">
               {pageHeadingTitle}
             </h1>
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
-              <span className="font-semibold text-[#1D4ED8]">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs font-medium text-slate-600 mt-1">
+              <span className="font-semibold text-[#1D4ED8] hidden sm:inline">
                 OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan)
               </span>
-              <span>•</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#1D4ED8] font-bold border border-blue-200/70">
+              <span className="hidden sm:inline">•</span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-blue-50 text-[#1D4ED8] font-bold border border-blue-200/70">
                 TA {activePeriode.tahun}
               </span>
               <span>•</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200/70">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200/70">
                 Semester {activeSemesterNum} ({activeSemesterNum === 1 ? 'Jan–Jun' : 'Jul–Des'}) — Dibuka
               </span>
             </div>
           </div>
 
           {/* Kanan Atas: Pilihan Tahun/Semester + Lonceng Notifikasi + Akun Pengguna */}
-          <div className="flex flex-wrap items-center justify-end gap-2.5 shrink-0 ml-auto self-end xl:self-center">
-            {/* Pilihan Tahun (2026 & 2027) dan Semester (Semester 1 & Semester 2) */}
-            <div className="flex items-center gap-1.5 bg-white border border-slate-200/90 rounded-2xl px-3 py-2 shadow-xs">
-              <Calendar className="w-4 h-4 text-[#2563EB]" />
-              <span className="text-[11px] font-semibold text-slate-500">Tahun:</span>
-              <select
-                value={activePeriode.periode_id}
-                onChange={(e) =>
-                  triggerSmoothReload(() => {
-                    setActivePeriodeId(e.target.value);
-                  })
-                }
-                className="text-xs font-bold text-slate-900 bg-transparent focus:outline-none cursor-pointer"
-              >
-                {periodes.map((p) => (
-                  <option key={p.periode_id} value={p.periode_id}>
-                    {p.tahun}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 sm:gap-2.5 shrink-0 w-full xl:w-auto self-end xl:self-center relative">
+            {/* Pilihan Tahun (2026 & 2027) dan Semester (Semester 1 & Semester 2) — di HP dibuat proporsional penuh agar mudah dibaca & disentuh */}
+            <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center justify-between sm:justify-start gap-1.5 bg-white border border-slate-200/90 rounded-2xl px-3.5 py-2.5 sm:px-3 sm:py-2 shadow-xs">
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-[#2563EB] shrink-0" />
+                  <span className="text-xs font-semibold text-slate-500">Tahun:</span>
+                </div>
+                <select
+                  value={activePeriode.periode_id}
+                  onChange={(e) =>
+                    triggerSmoothReload(() => {
+                      setActivePeriodeId(e.target.value);
+                    })
+                  }
+                  className="text-xs sm:text-xs font-bold text-slate-900 bg-transparent focus:outline-none cursor-pointer"
+                >
+                  {periodes.map((p) => (
+                    <option key={p.periode_id} value={p.periode_id}>
+                      {p.tahun}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-start gap-1.5 bg-white border border-slate-200/90 rounded-2xl px-3.5 py-2.5 sm:px-3 sm:py-2 shadow-xs">
+                <span className="text-xs font-semibold text-slate-500">Sem:</span>
+                <select
+                  value={selectedSemesterFilter === 'S2' ? 'S2' : 'S1'}
+                  onChange={(e) =>
+                    setSelectedSemesterFilter(e.target.value as 'S1' | 'S2')
+                  }
+                  className="text-xs font-bold text-[#1D4ED8] bg-transparent focus:outline-none cursor-pointer truncate"
+                >
+                  <option value="S1">Semester 1 (Buka)</option>
+                  <option value="S2">Semester 2 (Buka)</option>
+                </select>
+              </div>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-white border border-slate-200/90 rounded-2xl px-3 py-2 shadow-xs">
-              <span className="text-[11px] font-semibold text-slate-500">Semester:</span>
-              <select
-                value={selectedSemesterFilter === 'S2' ? 'S2' : 'S1'}
-                onChange={(e) =>
-                  setSelectedSemesterFilter(e.target.value as 'S1' | 'S2')
-                }
-                className="text-xs font-bold text-[#1D4ED8] bg-transparent focus:outline-none cursor-pointer"
-              >
-                <option value="S1">Semester 1 (Dibuka)</option>
-                <option value="S2">Semester 2 (Dibuka)</option>
-              </select>
-            </div>
+            <div className="h-7 w-px bg-slate-200/90 hidden md:block mx-0.5" />
 
-            <div className="h-7 w-px bg-slate-200/90 hidden sm:block mx-0.5" />
-
-            {/* Indikator Status Koneksi Saja (Tanpa Aksi Klik / Tanpa Perubahan) */}
+            {/* Indikator Status Koneksi Saja (Desktop >= md) */}
             <div
-              className="px-3 py-2 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-700 flex items-center gap-1.5 text-xs font-bold select-none"
+              className="hidden md:flex px-3 py-2 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-700 items-center gap-1.5 text-xs font-bold select-none"
               aria-label="Status Koneksi"
             >
               <span
@@ -636,7 +704,7 @@ export default function App() {
               <span>Terhubung</span>
             </div>
 
-            {/* Lonceng Notifikasi */}
+            {/* Lonceng Notifikasi (Tombol Desktop + Popover Responsif HP & Desktop) */}
             <div className="relative">
               <button
                 type="button"
@@ -644,7 +712,7 @@ export default function App() {
                   setNotifMenuOpen(!notifMenuOpen);
                   setProfileMenuOpen(false);
                 }}
-                className="w-11 h-11 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-center text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer relative"
+                className="hidden md:flex w-11 h-11 rounded-2xl bg-white border border-slate-200/80 shadow-xs items-center justify-center text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer relative"
                 aria-label="Notifikasi Aktivitas"
               >
                 <Bell className="w-5 h-5" />
@@ -659,7 +727,7 @@ export default function App() {
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                    className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-slate-200 shadow-xl p-4 z-50 space-y-3"
+                    className="fixed inset-x-3 top-16 md:absolute md:inset-x-auto md:right-0 md:top-auto md:mt-2 md:w-80 bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 z-50 space-y-3"
                   >
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <span className="text-xs font-bold text-slate-900">
@@ -671,24 +739,24 @@ export default function App() {
                           setNotifMenuOpen(false);
                           setActiveTab('audit-log');
                         }}
-                        className="text-[11px] font-semibold text-[#2563EB] hover:underline cursor-pointer"
+                        className="text-xs font-semibold text-[#2563EB] hover:underline cursor-pointer"
                       >
                         Lihat Semua
                       </button>
                     </div>
-                    <div className="space-y-2.5 max-h-60 overflow-y-auto">
+                    <div className="space-y-2.5 max-h-64 overflow-y-auto">
                       {auditLogs.slice(0, 4).map((log) => (
                         <div
                           key={log.log_id}
-                          className="p-2.5 rounded-xl bg-[#F8FAFF] border border-slate-100 text-xs space-y-0.5"
+                          className="p-3 rounded-xl bg-[#F8FAFF] border border-slate-100 text-xs space-y-1"
                         >
                           <p className="font-semibold text-slate-800 line-clamp-1">
                             {log.aksi}
                           </p>
-                          <p className="text-[11px] text-slate-500 line-clamp-2">
+                          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
                             {log.detail_perubahan}
                           </p>
-                          <p className="text-[10px] text-slate-400 pt-0.5">
+                          <p className="text-[11px] text-slate-400 pt-0.5">
                             {formatDateTimeID(log.created_at)}
                           </p>
                         </div>
@@ -699,7 +767,7 @@ export default function App() {
               </AnimatePresence>
             </div>
 
-            {/* Kartu Profil Pengguna (Menggunakan Siluet Orang Default) */}
+            {/* Kartu Profil Pengguna (Tombol Desktop + Popover Responsif HP & Desktop) */}
             <div className="relative">
               <button
                 type="button"
@@ -707,7 +775,7 @@ export default function App() {
                   setProfileMenuOpen(!profileMenuOpen);
                   setNotifMenuOpen(false);
                 }}
-                className="pl-2 pr-3.5 py-1.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="hidden md:flex pl-2 pr-3.5 py-1.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs items-center gap-2.5 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 <DefaultProfileAvatar className="w-9 h-9" />
                 <div className="text-left hidden sm:block">
@@ -727,36 +795,36 @@ export default function App() {
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                    className="absolute right-0 mt-2 w-72 bg-white rounded-2xl border border-slate-200 shadow-xl p-4 z-50 space-y-3"
+                    className="fixed inset-x-3 top-16 md:absolute md:inset-x-auto md:right-0 md:top-auto md:mt-2 md:w-76 bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 z-50 space-y-3"
                   >
                     <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-                      <DefaultProfileAvatar className="w-10 h-10" />
+                      <DefaultProfileAvatar className="w-10 h-10 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-900 truncate">
                           {currentUser.display_name}
                         </p>
-                        <p className="text-[11px] text-slate-500 truncate">
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-snug">
                           {currentUser.instansi_lengkap}
                         </p>
-                        <span className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] border border-blue-200/60">
+                        <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] border border-blue-200/60">
                           {currentUser.role === 'ADMIN' ? 'Administrator Bapperida' : 'Operator OPD Terverifikasi'}
                         </span>
                       </div>
                     </div>
 
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400">Username:</span>
-                        <span className="font-mono text-slate-700 font-semibold">{currentUser.username}</span>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-500">Username:</span>
+                        <span className="font-mono text-slate-800 font-semibold">{currentUser.username}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400">Email:</span>
-                        <span className="font-mono text-[#1D4ED8] font-semibold truncate max-w-[165px]">
+                      <div className="flex items-center justify-between text-xs gap-2">
+                        <span className="text-slate-500 shrink-0">Email:</span>
+                        <span className="font-mono text-[#1D4ED8] font-semibold truncate">
                           {currentUser.email || `${currentUser.username}@oppkpke.com`}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400">Hak Akses:</span>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-500">Hak Akses:</span>
                         <span className="font-semibold text-emerald-700">Aktif ({currentUser.role})</span>
                       </div>
                     </div>
@@ -765,7 +833,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleLogout}
-                        className="w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                        className="w-full px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50/70 hover:bg-rose-100 flex items-center justify-center gap-2 cursor-pointer transition-colors"
                       >
                         <LogOut className="w-4 h-4" />
                         <span>Keluar Sistem (Logout)</span>
@@ -778,8 +846,8 @@ export default function App() {
           </div>
         </header>
 
-        {/* Main Content Body (Fleksibel & Dinamis penuh sesuai ukuran layar) */}
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 pb-10 pt-2 w-full max-w-none">
+        {/* Main Content Body (Di HP diberi ruang bawah pb-28 agar tidak tertutup Bottom Dock) */}
+        <main className="flex-1 px-3.5 sm:px-6 lg:px-8 pb-28 md:pb-10 pt-1.5 sm:pt-2 w-full max-w-none">
           {isLoadingView ? (
             <DashboardSkeleton />
           ) : (
@@ -915,6 +983,52 @@ export default function App() {
         </main>
       </div>
 
+      {/* MOBILE BOTTOM NAVIGATION DOCK (Otomatis muncul di bawah saat dibuka di HP < md) */}
+      <nav
+        aria-label="Navigasi Utama Mobile"
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 shadow-[0_-10px_30px_-6px_rgba(15,23,42,0.14)] px-2 pt-1.5 pb-safe-dock"
+      >
+        <div className="flex items-stretch justify-between gap-1 overflow-x-auto no-scrollbar">
+          {sidebarNavItems.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setProfileMenuOpen(false);
+                  setNotifMenuOpen(false);
+                }}
+                className={`flex-1 min-w-[60px] min-h-[56px] py-1.5 px-1.5 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95 ${
+                  isActive
+                    ? 'bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] text-white shadow-[0_6px_16px_-4px_rgba(37,99,235,0.55)]'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
+              >
+                {item.icon}
+                <span className="text-[11px] font-bold leading-none tracking-tight whitespace-nowrap">
+                  {item.shortLabel}
+                </span>
+              </button>
+            );
+          })}
+
+          {/* Tombol Keluar Cepat di Ujung Kanan Dock Mobile */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Keluar Sistem"
+            className="min-w-[56px] min-h-[56px] py-1.5 px-1.5 rounded-2xl flex flex-col items-center justify-center gap-1 text-rose-600 bg-rose-50/80 active:scale-95 transition-all cursor-pointer shrink-0"
+          >
+            <LogOut className="w-5 h-5 shrink-0" />
+            <span className="text-[11px] font-bold leading-none tracking-tight whitespace-nowrap">
+              Keluar
+            </span>
+          </button>
+        </div>
+      </nav>
+
       {/* POPOUT MODAL INPUT & EDIT MATRIKS (4 LANGKAH LENGKAP DARI REKENING S.D. REALISASI) */}
       <MatrixInputModal
         isOpen={isInputModalOpen}
@@ -929,10 +1043,8 @@ export default function App() {
         onSave={handleSaveMatrixModal}
       />
 
-
-
-      {/* Notifikasi Toast Sukses & Gagal dengan Transisi Halus */}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+      {/* Notifikasi Toast Sukses & Gagal dengan Transisi Halus (Di HP naik di atas Bottom Dock) */}
+      <div className="fixed bottom-24 md:bottom-5 right-3 sm:right-5 left-3 sm:left-auto z-50 flex flex-col gap-2 max-w-sm w-auto sm:w-full pointer-events-none">
         <AnimatePresence>
           {toasts.map((t) => (
             <motion.div
