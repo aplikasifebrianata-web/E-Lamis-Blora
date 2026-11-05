@@ -20,7 +20,6 @@ import {
   LogOut,
   Users,
   Calendar,
-  Cloud,
 } from 'lucide-react';
 import {
   AuditLog,
@@ -41,7 +40,6 @@ import { SystemGovernanceView } from './components/SystemGovernanceView';
 import { UserManagementView } from './components/UserManagementView';
 import { LoginView } from './components/LoginView';
 import { MatrixInputModal } from './components/MatrixInputModal';
-import { FirebaseCloudSyncModal } from './components/FirebaseCloudSyncModal';
 import { DashboardSkeleton } from './components/ui/SkeletonLoader';
 import {
   BloraShieldLogo,
@@ -65,7 +63,6 @@ export default function App() {
     DatabaseService.getCurrentSessionUser()
   );
   const [firebaseUser, setFirebaseUser] = useState<User | null>(() => auth.currentUser);
-  const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
 
   // State Database Utama
   const [periodes, setPeriodes] = useState<PeriodePelaporan[]>(() =>
@@ -95,23 +92,16 @@ export default function App() {
 
   // Listener autentikasi Firebase & langganan real-time Firestore (onSnapshot)
   useEffect(() => {
-    let unsubFirestore: (() => void) | null = null;
+    const unsubFirestore = DatabaseService.subscribeToFirestore(() => {
+      setPeriodes(DatabaseService.getPeriodeList());
+      setRefreshTick((t) => t + 1);
+    });
     const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser);
-      if (unsubFirestore) {
-        unsubFirestore();
-        unsubFirestore = null;
-      }
-      if (fbUser) {
-        unsubFirestore = DatabaseService.subscribeToFirestore(() => {
-          setPeriodes(DatabaseService.getPeriodeList());
-          setRefreshTick((t) => t + 1);
-        });
-      }
     });
     return () => {
       unsubAuth();
-      if (unsubFirestore) unsubFirestore();
+      unsubFirestore();
     };
   }, []);
 
@@ -608,27 +598,18 @@ export default function App() {
 
             <div className="h-7 w-px bg-slate-200/90 hidden sm:block mx-0.5" />
 
-            {/* Tombol Status & Sinkronisasi Firebase Cloud */}
-            <button
-              type="button"
-              onClick={() => setIsFirebaseModalOpen(true)}
-              title="Sinkronisasi Database Firebase (Cloud Firestore)"
-              className={`px-3 py-2 rounded-2xl border shadow-xs flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
-                firebaseUser
-                  ? 'bg-emerald-50 hover:bg-emerald-100/80 border-emerald-200 text-emerald-800'
-                  : 'bg-white hover:bg-blue-50 border-slate-200/90 text-[#1D4ED8]'
-              }`}
+            {/* Indikator Status Koneksi Saja (Tanpa Aksi Klik / Tanpa Perubahan) */}
+            <div
+              className="px-3 py-2 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-700 flex items-center gap-1.5 text-xs font-bold select-none"
+              aria-label="Status Koneksi"
             >
-              <Cloud className="w-4 h-4 shrink-0" />
-              <span className="hidden md:inline">
-                {firebaseUser ? 'Firebase Tersinkron' : 'Firebase Cloud'}
-              </span>
               <span
                 className={`w-2 h-2 rounded-full ${
-                  firebaseUser ? 'bg-emerald-500' : 'bg-blue-500 animate-pulse'
+                  firebaseUser ? 'bg-emerald-500' : 'bg-emerald-500'
                 }`}
               />
-            </button>
+              <span>Terhubung</span>
+            </div>
 
             {/* Lonceng Notifikasi */}
             <div className="relative">
@@ -742,6 +723,12 @@ export default function App() {
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-slate-400">Username:</span>
                         <span className="font-mono text-slate-700 font-semibold">{currentUser.username}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Email:</span>
+                        <span className="font-mono text-[#1D4ED8] font-semibold truncate max-w-[165px]">
+                          {currentUser.email || `${currentUser.username}@oppkpke.com`}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-slate-400">Hak Akses:</span>
@@ -917,17 +904,7 @@ export default function App() {
         onSave={handleSaveMatrixModal}
       />
 
-      {/* MODAL KONFIGURASI & SINKRONISASI DATABASE FIREBASE CLOUD */}
-      <FirebaseCloudSyncModal
-        isOpen={isFirebaseModalOpen}
-        onClose={() => setIsFirebaseModalOpen(false)}
-        firebaseUser={firebaseUser}
-        onDataSynced={() => {
-          setPeriodes(DatabaseService.getPeriodeList());
-          setRefreshTick((t) => t + 1);
-        }}
-        onShowToast={showToast}
-      />
+
 
       {/* Notifikasi Toast Sukses & Gagal dengan Transisi Halus */}
       <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">

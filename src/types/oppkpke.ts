@@ -43,6 +43,7 @@ export type UserRole = 'ADMIN' | 'OPD';
 export interface AuthUser {
   user_id: string;
   username: string;
+  email?: string;
   password_hint: string;
   role: UserRole;
   opd_id: string | null;

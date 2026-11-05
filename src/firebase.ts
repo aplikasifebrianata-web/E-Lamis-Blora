@@ -3,6 +3,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   User,
@@ -12,16 +14,68 @@ import {
   doc,
   getDocFromServer,
 } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import rawFirebaseConfig from '../firebase-applet-config.json';
 
-// Initialize Firebase SDK using provisioned firebase-applet-config.json
+const resolvedDatabaseId =
+  !rawFirebaseConfig.firestoreDatabaseId ||
+  (rawFirebaseConfig.projectId === 'e-lamisblora' &&
+    rawFirebaseConfig.firestoreDatabaseId.startsWith('ai-studio-'))
+    ? '(default)'
+    : rawFirebaseConfig.firestoreDatabaseId;
+
+export const firebaseConfig = {
+  ...rawFirebaseConfig,
+  firestoreDatabaseId: resolvedDatabaseId,
+};
+
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-export { firebaseConfig, signInWithPopup, signOut, onAuthStateChanged };
+export {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+};
 export type { User };
+
+/**
+ * Normalisasi password untuk Firebase Auth (minimal 6 karakter sesuai ketentuan Firebase Auth)
+ */
+export function normalizeFirebaseAuthPassword(rawPassword: string): string {
+  const clean = rawPassword.trim();
+  if (clean.length >= 6) return clean;
+  return `${clean}123456`.slice(0, 6);
+}
+
+/**
+ * Login atau daftarkan akun [namaopd]@oppkpke.com ke Firebase Authentication secara otomatis
+ */
+export async function syncFirebaseEmailAuth(
+  email: string,
+  rawPassword: string
+): Promise<User | null> {
+  const cleanEmail = email.trim().toLowerCase();
+  const fbPassword = normalizeFirebaseAuthPassword(rawPassword);
+  try {
+    const cred = await signInWithEmailAndPassword(auth, cleanEmail, fbPassword);
+    return cred.user;
+  } catch {
+    try {
+      const created = await createUserWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        fbPassword
+      );
+      return created.user;
+    } catch {
+      return auth.currentUser;
+    }
+  }
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -75,7 +129,7 @@ export function handleFirestoreError(
     operationType,
     path,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  console.warn('Firestore Operation Notice:', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -88,10 +142,12 @@ async function testConnection() {
       error instanceof Error &&
       error.message.includes('the client is offline')
     ) {
-      console.error('Please check your Firebase configuration.');
+      console.warn(
+        'Firestore connection notice: pastikan Cloud Firestore sudah aktif pada project ' +
+          firebaseConfig.projectId
+      );
     }
-    // Skip logging other errors, as this is simply a connection test.
   }
 }
 
-testConnection();
+void testConnection();

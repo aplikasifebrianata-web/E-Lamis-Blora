@@ -18,9 +18,11 @@ import {
   X,
   FileText,
   Layers,
+  Mail,
 } from 'lucide-react';
 import { AuthUser, InstansiKategori } from '../types/oppkpke';
 import { INSTANSI_KATEGORI_LIST } from '../data/bloraSeedData';
+import { formatOpdEmail } from '../services/databaseService';
 
 interface UserManagementViewProps {
   users: AuthUser[];
@@ -29,6 +31,7 @@ interface UserManagementViewProps {
     kategori: InstansiKategori;
     nama_instansi: string;
     username: string;
+    email?: string;
     password: string;
   }) => void;
   onDeleteUser: (userId: string) => void;
@@ -37,6 +40,7 @@ interface UserManagementViewProps {
       kategori: InstansiKategori;
       nama_instansi: string;
       username: string;
+      email?: string;
       password: string;
     }[];
     resetMatrixData?: boolean;
@@ -100,10 +104,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [pasteText, setPasteText] = useState('');
   const [pasteKategori, setPasteKategori] = useState<InstansiKategori>('OPD/Dinas/Badan');
 
-  // Normalisasi kategori setiap user (jika role ADMIN maka masuk kategori 'Admin')
+  // Normalisasi kategori & email [namaopd]@oppkpke.com setiap user
   const normalizedUsers = useMemo(() => {
     return users.map((u) => ({
       ...u,
+      resolvedEmail: formatOpdEmail(u.email || u.username),
       resolvedKategori: (u.role === 'ADMIN'
         ? 'Admin'
         : u.kategori || 'OPD/Dinas/Badan') as InstansiKategori,
@@ -137,6 +142,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         return (
           u.instansi_lengkap.toLowerCase().includes(q) ||
           u.username.toLowerCase().includes(q) ||
+          u.resolvedEmail.toLowerCase().includes(q) ||
           u.resolvedKategori.toLowerCase().includes(q)
         );
       }
@@ -183,11 +189,13 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   const handleSubmitSingleUser = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanUser = formUsername.trim().toLowerCase().replace(/\s+/g, '_');
     onSaveUser({
       user_id: editingUser?.user_id || null,
       kategori: formKategori,
       nama_instansi: formNamaInstansi,
-      username: formUsername,
+      username: cleanUser,
+      email: formatOpdEmail(cleanUser),
       password: formPassword,
     });
     setIsUserModalOpen(false);
@@ -195,10 +203,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   const handleCopyCredentials = (u: AuthUser) => {
     const kat = u.role === 'ADMIN' ? 'Admin' : u.kategori || 'OPD/Dinas/Badan';
-    const text = `Kategori : ${kat}\nRole : ${u.role}\nNama Instansi : ${u.instansi_lengkap}\nUser name : ${u.username}\nPassword : ${u.password_hint}`;
+    const userEmail = formatOpdEmail(u.email || u.username);
+    const text = `Kategori : ${kat}\nRole : ${u.role}\nNama Instansi : ${u.instansi_lengkap}\nUser name : ${u.username}\nEmail : ${userEmail}\nPassword : ${u.password_hint}`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text);
-      onShowToast('success', `Kredensial "${u.username}" disalin ke clipboard.`);
+      onShowToast('success', `Kredensial "${u.username}" (${userEmail}) disalin ke clipboard.`);
     }
   };
 
@@ -335,6 +344,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             nama_instansi:
               'BADAN PERENCANAAN PEMBANGUNAN, RISET DAN INOVASI DAERAH KAB. BLORA',
             username: 'admin',
+            email: 'admin@oppkpke.com',
             password: 'admin',
           },
         ],
@@ -352,6 +362,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             nama_instansi:
               'BADAN PERENCANAAN PEMBANGUNAN, RISET DAN INOVASI DAERAH KAB. BLORA',
             username: 'admin',
+            email: 'admin@oppkpke.com',
             password: 'admin',
           },
           {
@@ -359,6 +370,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             nama_instansi:
               'DINAS KEPEMUDAAN, OLAH RAGA, KEBUDAYAAN DAN PARIWISATA',
             username: 'dinporabudpar',
+            email: 'dinporabudpar@oppkpke.com',
             password: 'lamis123',
           },
         ],
@@ -372,12 +384,16 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       (r) => r.nama_instansi.trim() && r.username.trim()
     );
     onResetAndReplaceAllUsers({
-      newAccounts: validRows.map((r) => ({
-        kategori: r.kategori,
-        nama_instansi: r.nama_instansi.trim(),
-        username: r.username.trim(),
-        password: r.password.trim() || (r.kategori === 'Admin' ? 'admin' : 'lamis123'),
-      })),
+      newAccounts: validRows.map((r) => {
+        const cleanUname = r.username.trim().toLowerCase().replace(/\s+/g, '_');
+        return {
+          kategori: r.kategori,
+          nama_instansi: r.nama_instansi.trim(),
+          username: cleanUname,
+          email: formatOpdEmail(cleanUname),
+          password: r.password.trim() || (r.kategori === 'Admin' ? 'admin' : 'lamis123'),
+        };
+      }),
       resetMatrixData: resetMatrixToo,
     });
     setIsResetModalOpen(false);
@@ -402,6 +418,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     }
   };
 
+  const previewModalEmail = formatOpdEmail(
+    formUsername || (formKategori === 'Admin' ? 'admin' : 'namaopd')
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -421,7 +441,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             Daftar User per Kategori (Admin, OPD/Dinas/Badan, RSUD, Puskesmas, Kecamatan & Kelurahan)
           </h2>
           <p className="text-xs text-slate-500 max-w-3xl leading-relaxed">
-            Kelola akun login untuk kategori <strong>Admin</strong> (username: <code>admin</code>, password: <code>admin</code>, Role: <strong>Admin</strong>) serta masing-masing kategori instansi (<strong>OPD/Dinas/Badan, RSUD, Puskesmas, Kecamatan, dan Kelurahan</strong>).
+            Kelola akun login beserta email autentikasi Firestore (format otomatis:{' '}
+            <code>[namaopd]@oppkpke.com</code>) untuk kategori <strong>Admin</strong> maupun
+            masing-masing instansi.
           </p>
         </div>
 
@@ -548,7 +570,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama instansi atau username..."
+              placeholder="Cari instansi, username, atau email..."
               className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
             />
           </div>
@@ -651,11 +673,12 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   <thead>
                     <tr className="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                       <th className="py-3 px-4 w-12 text-center">No</th>
-                      <th className="py-3 px-4 w-40">Kategori</th>
+                      <th className="py-3 px-4 w-36">Kategori</th>
                       <th className="py-3 px-4">Nama Instansi / Unit</th>
-                      <th className="py-3 px-4 w-40">User Name</th>
-                      <th className="py-3 px-4 w-44">Password</th>
-                      <th className="py-3 px-4 w-28">Role</th>
+                      <th className="py-3 px-4 w-36">User Name</th>
+                      <th className="py-3 px-4 w-56">Email Autentikasi</th>
+                      <th className="py-3 px-4 w-40">Password</th>
+                      <th className="py-3 px-4 w-24">Role</th>
                       <th className="py-3 px-4 w-44 text-right">Aksi</th>
                     </tr>
                   </thead>
@@ -689,6 +712,12 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                           <td className="py-3.5 px-4">
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-mono text-xs font-bold border border-slate-200">
                               {u.username}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50/80 text-[#1D4ED8] font-mono text-xs font-bold border border-blue-200/80">
+                              <Mail className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
+                              <span>{u.resolvedEmail}</span>
                             </span>
                           </td>
                           <td className="py-3.5 px-4">
@@ -732,7 +761,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleCopyCredentials(u)}
-                                title="Salin User & Password"
+                                title="Salin User, Email & Password"
                                 className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                               >
                                 <Copy className="w-3.5 h-3.5" />
@@ -786,7 +815,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       {editingUser ? 'Edit Akun User' : 'Tambah Akun User Baru'}
                     </h3>
                     <p className="text-[11px] text-slate-500">
-                      Isikan Kategori, Nama Instansi, User name, dan Password
+                      Isikan Kategori, Nama Instansi, User name, Email, dan Password
                     </p>
                   </div>
                 </div>
@@ -860,14 +889,19 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      User name *
+                      User name (Nama OPD) *
                     </label>
                     <input
                       type="text"
                       required
                       value={formUsername}
                       onChange={(e) =>
-                        setFormUsername(e.target.value.toLowerCase().replace(/\s+/g, '_'))
+                        setFormUsername(
+                          e.target.value
+                            .toLowerCase()
+                            .replace(/@.*$/, '')
+                            .replace(/\s+/g, '_')
+                        )
                       }
                       placeholder={formKategori === 'Admin' ? 'Contoh: admin' : 'Contoh: dinporabudpar'}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
@@ -889,10 +923,28 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   </div>
                 </div>
 
+                {/* Email Autentikasi Firestore [namaopd]@oppkpke.com */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Email Autentikasi Firestore (Otomatis)
+                  </label>
+                  <div className="w-full px-3.5 py-2.5 rounded-xl bg-blue-50/80 border border-blue-200 text-xs font-mono font-bold text-[#1D4ED8] flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-[#2563EB] shrink-0" />
+                    <span>{previewModalEmail}</span>
+                  </div>
+                </div>
+
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 space-y-0.5">
                   <p className="font-bold text-slate-800">Contoh Format Sesuai Standar:</p>
-                  <p>• Kategori Admin : User name <strong>admin</strong> · Password <strong>admin</strong> (Role: Admin)</p>
-                  <p>• Kategori OPD/Dinas/Badan : User name <strong>dinporabudpar</strong> · Password <strong>lamis123</strong></p>
+                  <p>
+                    • Kategori Admin : User <strong>admin</strong> · Email{' '}
+                    <strong>admin@oppkpke.com</strong> · Password <strong>admin</strong>
+                  </p>
+                  <p>
+                    • Kategori OPD : User <strong>dinporabudpar</strong> · Email{' '}
+                    <strong>dinporabudpar@oppkpke.com</strong> · Password{' '}
+                    <strong>lamis123</strong>
+                  </p>
                 </div>
 
                 <div className="pt-2 flex items-center justify-end gap-2.5">
@@ -938,6 +990,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     Apakah Anda yakin ingin menghapus akun{' '}
                     <strong className="text-slate-800">{deletingUser.username}</strong> (
+                    {formatOpdEmail(deletingUser.email || deletingUser.username)} —{' '}
                     {deletingUser.instansi_lengkap})?
                   </p>
                 </div>
@@ -989,7 +1042,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       Reset Semua Akun & Pengisian Daftar User Baru
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Tindakan ini akan mereset seluruh akun lama dan menggantinya dengan daftar akun yang Anda isikan di bawah ini.
+                      Seluruh user otomatis dibuatkan email autentikasi{' '}
+                      <code>[namaopd]@oppkpke.com</code> untuk Firestore.
                     </p>
                   </div>
                 </div>
@@ -1042,7 +1096,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       <FileText className="w-4 h-4 text-amber-600" />
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1">
-                      Sisakan akun Admin (<strong>admin / admin</strong>) dan 1 contoh OPD (<strong>dinporabudpar / lamis123</strong>).
+                      Sisakan akun Admin (<strong>admin@oppkpke.com</strong>) dan 1 contoh OPD (<strong>dinporabudpar@oppkpke.com</strong>).
                     </p>
                   </button>
 
@@ -1062,7 +1116,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       <Trash2 className="w-4 h-4 text-rose-600" />
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1">
-                      Hapus seluruh akun instansi hingga kosong (hanya menyisakan akun <strong>admin / admin</strong>).
+                      Hapus seluruh akun instansi hingga kosong (hanya menyisakan akun <strong>admin@oppkpke.com</strong>).
                     </p>
                   </button>
                 </div>
@@ -1077,8 +1131,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                             Tambah Cepat via Copy-Paste Baris (Opsional)
                           </p>
                           <p className="text-[11px] text-slate-500">
-                            Format per baris: <code>Nama Instansi ; username ; password</code> atau{' '}
-                            <code>Kategori ; Nama Instansi ; username ; password</code>.
+                            Format per baris: <code>Nama Instansi ; username ; password</code> (Email{' '}
+                            <code>[namaopd]@oppkpke.com</code> dibuat otomatis).
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1168,11 +1222,12 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                           <thead>
                             <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-500">
                               <th className="py-2.5 px-3 w-10 text-center">No</th>
-                              <th className="py-2.5 px-3 w-44">Kategori</th>
+                              <th className="py-2.5 px-3 w-40">Kategori</th>
                               <th className="py-2.5 px-3">Nama Instansi / Unit</th>
-                              <th className="py-2.5 px-3 w-44">User name</th>
-                              <th className="py-2.5 px-3 w-36">Password</th>
-                              <th className="py-2.5 px-3 w-14 text-center">Hapus</th>
+                              <th className="py-2.5 px-3 w-36">User name</th>
+                              <th className="py-2.5 px-3 w-48">Email ([namaopd]@oppkpke.com)</th>
+                              <th className="py-2.5 px-3 w-32">Password</th>
+                              <th className="py-2.5 px-3 w-12 text-center">Hapus</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200/70 text-xs">
@@ -1224,11 +1279,19 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                                         row.id,
                                         'username',
                                         e.target.value
+                                          .toLowerCase()
+                                          .replace(/@.*$/, '')
+                                          .replace(/\s+/g, '_')
                                       )
                                     }
-                                    placeholder="username"
+                                    placeholder="namaopd"
                                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-mono font-bold"
                                   />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <div className="px-2.5 py-1.5 rounded-lg bg-blue-50/70 border border-blue-200/80 text-[#1D4ED8] font-mono text-[11px] font-bold truncate">
+                                    {formatOpdEmail(row.username || 'namaopd')}
+                                  </div>
                                 </td>
                                 <td className="py-2 px-3">
                                   <input
@@ -1280,7 +1343,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               {/* Footer Modal Reset */}
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
                 <p className="text-[11px] text-slate-500">
-                  Catatan: Akun kategori Admin (<code>admin</code> / <code>admin</code>) tetap aktif.
+                  Catatan: Akun kategori Admin (<code>admin@oppkpke.com</code>) tetap aktif.
                 </p>
                 <div className="flex items-center gap-2.5">
                   <button

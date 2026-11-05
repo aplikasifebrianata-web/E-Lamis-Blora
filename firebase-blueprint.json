@@ -138,6 +138,11 @@
           "type": "string",
           "maxLength": 64
         },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 120
+        },
         "password_hint": {
           "type": "string",
           "maxLength": 64
@@ -196,6 +201,7 @@
       "required": [
         "user_id",
         "username",
+        "email",
         "password_hint",
         "role",
         "kategori",

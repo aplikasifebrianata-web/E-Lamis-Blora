@@ -96,17 +96,18 @@ service cloud.firestore {
 
     function isValidUserAccount(data) {
       return data.keys().hasAll([
-          'user_id', 'username', 'password_hint', 'role', 'kategori',
+          'user_id', 'username', 'email', 'password_hint', 'role', 'kategori',
           'display_name', 'instansi_label', 'instansi_lengkap', 'jabatan',
           'ownerId', 'createdAt', 'updatedAt'
         ]) &&
         data.keys().hasOnly([
-          'user_id', 'username', 'password_hint', 'role', 'opd_id', 'kategori',
+          'user_id', 'username', 'email', 'password_hint', 'role', 'opd_id', 'kategori',
           'display_name', 'instansi_label', 'instansi_lengkap', 'jabatan',
           'ownerId', 'createdAt', 'updatedAt'
         ]) &&
         isValidId(data.user_id) &&
         data.username is string && data.username.size() >= 1 && data.username.size() <= 64 &&
+        data.email is string && data.email.size() >= 5 && data.email.size() <= 120 &&
         data.password_hint is string && data.password_hint.size() >= 1 && data.password_hint.size() <= 64 &&
         data.role in ['ADMIN', 'OPD'] &&
         (!('opd_id' in data) || data.opd_id == null || (data.opd_id is string && data.opd_id.size() <= 64)) &&
@@ -273,7 +274,7 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
         incoming().diff(existing()).affectedKeys().hasOnly([
-          'username', 'password_hint', 'role', 'opd_id', 'kategori',
+          'username', 'email', 'password_hint', 'role', 'opd_id', 'kategori',
           'display_name', 'instansi_label', 'instansi_lengkap', 'jabatan', 'updatedAt'
         ]);
       allow delete: if isOwnerOrAdmin() && isValidId(userId);

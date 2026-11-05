@@ -235,6 +235,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-admin',
     username: 'admin',
+    email: 'admin@oppkpke.com',
     password_hint: 'admin',
     role: 'ADMIN',
     opd_id: null,
@@ -247,6 +248,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dinporabudpar',
     username: 'dinporabudpar',
+    email: 'dinporabudpar@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dinporabudpar',
@@ -259,6 +261,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dinsos',
     username: 'dinas_p3a',
+    email: 'dinas_p3a@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dinsos',
@@ -271,6 +274,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dinkes',
     username: 'dinkesda',
+    email: 'dinkesda@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dinkes',
@@ -283,6 +287,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dindik',
     username: 'dindik',
+    email: 'dindik@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dindik',
@@ -295,6 +300,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dinrumkimhub',
     username: 'dinrumkimhub',
+    email: 'dinrumkimhub@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dinrumkimhub',
@@ -307,6 +313,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dp4',
     username: 'dp4_blora',
+    email: 'dp4_blora@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dp4',
@@ -319,6 +326,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dinnakerperin',
     username: 'dinnakerperin',
+    email: 'dinnakerperin@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dinnakerperin',
@@ -331,6 +339,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dindagkopukm',
     username: 'dindagkop',
+    email: 'dindagkop@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dindagkopukm',
@@ -343,6 +352,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dpupr',
     username: 'dpupr',
+    email: 'dpupr@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dpupr',
@@ -355,6 +365,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-dpmd',
     username: 'dpmd',
+    email: 'dpmd@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-dpmd',
@@ -367,6 +378,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-rsud-blora',
     username: 'rsud_soetijono',
+    email: 'rsud_soetijono@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-rsud-blora',
@@ -379,6 +391,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-rsud-cepu',
     username: 'rsud_soeprapto',
+    email: 'rsud_soeprapto@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-rsud-cepu',
@@ -391,6 +404,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-pkm-blora',
     username: 'pkm_blora',
+    email: 'pkm_blora@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-pkm-blora',
@@ -403,6 +417,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-kec-blora',
     username: 'kec_blora',
+    email: 'kec_blora@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-kec-blora',
@@ -415,6 +430,7 @@ export const SEED_USERS: AuthUser[] = [
   {
     user_id: 'usr-kel-kunden',
     username: 'kel_kunden',
+    email: 'kel_kunden@oppkpke.com',
     password_hint: 'lamis123',
     role: 'OPD',
     opd_id: 'opd-kel-kunden',

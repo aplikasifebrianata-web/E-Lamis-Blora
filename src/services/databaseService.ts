@@ -13,6 +13,7 @@ import {
 import {
   db,
   auth,
+  syncFirebaseEmailAuth,
   OperationType,
   handleFirestoreError,
 } from '../firebase';
@@ -43,13 +44,27 @@ import { ParsedExcelBaseRow } from '../utils/excelService';
 const STORAGE_KEYS = {
   PERIODE: 'e_oppkpke_blora_periode_v3',
   OPD: 'e_oppkpke_blora_opd_v4',
-  USERS: 'e_oppkpke_blora_users_v5',
+  USERS: 'e_oppkpke_blora_users_v6',
   MATRIX: 'e_oppkpke_blora_matrix_v3',
   REALISASI: 'e_oppkpke_blora_realisasi_v3',
   AUDIT: 'e_oppkpke_blora_audit_v3',
   SESSION_USER: 'e_oppkpke_blora_session_v2',
   LAST_SYNC_AT: 'e_oppkpke_blora_last_sync_v1',
 };
+
+/**
+ * Pembentuk format email standar autentikasi user: [namaopd]@oppkpke.com
+ */
+export function formatOpdEmail(usernameOrEmail: string): string {
+  const clean = usernameOrEmail.trim().toLowerCase();
+  if (!clean) return 'opd@oppkpke.com';
+  const localPart = clean
+    .split('@')[0]
+    .replace(/[^a-z0-9_.-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  return `${localPart || 'opd'}@oppkpke.com`;
+}
 
 function loadTable<T>(key: string, fallback: T[]): T[] {
   try {
@@ -146,9 +161,11 @@ function serializeOpdForFirestore(o: OPD): Record<string, unknown> {
 }
 
 function serializeUserForFirestore(u: AuthUser): Record<string, unknown> {
+  const resolvedEmail = formatOpdEmail(u.email || u.username);
   return {
     user_id: u.user_id,
     username: String(u.username || 'user').slice(0, 64),
+    email: resolvedEmail.slice(0, 120),
     password_hint: String(u.password_hint || 'lamis123').slice(0, 64),
     role: u.role,
     opd_id: u.opd_id ?? null,
@@ -221,7 +238,7 @@ export class DatabaseService {
   }
 
   /**
-   * Sinkronkan seluruh data lokal ke Cloud Firestore secara berurutan (mematuhi relasi foreign key)
+   * Sinkronkan seluruh data lokal ke Cloud Firestore secara berurutan
    */
   static async syncAllLocalToFirestore(): Promise<{
     success: boolean;
@@ -238,12 +255,11 @@ export class DatabaseService {
     if (!currentUser) {
       return {
         success: false,
-        message: 'Silakan hubungkan akun Google Firebase terlebih dahulu untuk sinkronisasi Cloud.',
+        message: 'Belum ada sesi aktif.',
         counts: { periodes: 0, opds: 0, users: 0, matrices: 0, realisasis: 0 },
       };
     }
 
-    // Pastikan dokumen role Admin terdaftar di /admins/{uid} agar dapat memverifikasi dan mengelola data lintas semester
     try {
       const adminRef = doc(db, 'admins', currentUser.uid);
       const adminSnap = await getDoc(adminRef);
@@ -254,7 +270,7 @@ export class DatabaseService {
         });
       }
     } catch {
-      // Lanjutkan meskipun sudah ada
+      // ignore
     }
 
     const periodes = this.getPeriodeList();
@@ -263,25 +279,19 @@ export class DatabaseService {
     const matrices = this.getMatrixDataList();
     const realisasis = this.getRealisasiList();
 
-    // 1. Sinkronisasi Periodes & OPDs terlebih dahulu (induk dari Matrices)
     for (const p of periodes) {
       await upsertFirestoreDocument('periodes', p.periode_id, serializePeriodeForFirestore(p));
     }
     for (const o of opds) {
       await upsertFirestoreDocument('opds', o.opd_id, serializeOpdForFirestore(o));
     }
-
-    // 2. Sinkronisasi User Accounts
     for (const u of users) {
       await upsertFirestoreDocument('user_accounts', u.user_id, serializeUserForFirestore(u));
     }
-
-    // 3. Sinkronisasi Matrices (induk dari Realisasis)
     for (const m of matrices) {
       await upsertFirestoreDocument('matrices', m.matrix_id, serializeMatrixForFirestore(m));
     }
 
-    // 4. Sinkronisasi Realisasi Semester
     const matrixIds = new Set(matrices.map((m) => m.matrix_id));
     let realisasiCount = 0;
     for (const r of realisasis) {
@@ -296,7 +306,7 @@ export class DatabaseService {
 
     return {
       success: true,
-      message: `Sinkronisasi Firebase berhasil: ${periodes.length} periode, ${opds.length} instansi, ${users.length} user, ${matrices.length} matriks, dan ${realisasiCount} realisasi tersimpan di Cloud Firestore.`,
+      message: 'Sinkronisasi berhasil.',
       counts: {
         periodes: periodes.length,
         opds: opds.length,
@@ -319,7 +329,6 @@ export class DatabaseService {
     const uid = currentUser.uid;
     const unsubs: Unsubscribe[] = [];
 
-    // 1. Periodes listener
     const qPeriodes = query(collection(db, 'periodes'), where('ownerId', '==', uid));
     unsubs.push(
       onSnapshot(
@@ -351,7 +360,6 @@ export class DatabaseService {
       )
     );
 
-    // 2. OPDs listener
     const qOpds = query(collection(db, 'opds'), where('ownerId', '==', uid));
     unsubs.push(
       onSnapshot(
@@ -379,7 +387,6 @@ export class DatabaseService {
       )
     );
 
-    // 3. User Accounts listener
     const qUsers = query(collection(db, 'user_accounts'), where('ownerId', '==', uid));
     unsubs.push(
       onSnapshot(
@@ -388,9 +395,11 @@ export class DatabaseService {
           if (!snap.empty) {
             const items: AuthUser[] = snap.docs.map((d) => {
               const data = d.data();
+              const uname = String(data.username || '');
               return {
                 user_id: String(data.user_id || d.id),
-                username: String(data.username || ''),
+                username: uname,
+                email: formatOpdEmail(String(data.email || uname)),
                 password_hint: String(data.password_hint || ''),
                 role: (data.role as UserRole) || 'OPD',
                 opd_id: data.opd_id ? String(data.opd_id) : null,
@@ -411,7 +420,6 @@ export class DatabaseService {
       )
     );
 
-    // 4. Matrices listener
     const qMatrices = query(collection(db, 'matrices'), where('ownerId', '==', uid));
     unsubs.push(
       onSnapshot(
@@ -463,7 +471,6 @@ export class DatabaseService {
       )
     );
 
-    // 5. Realisasis listener
     const qRealisasis = query(collection(db, 'realisasis'), where('ownerId', '==', uid));
     unsubs.push(
       onSnapshot(
@@ -501,14 +508,22 @@ export class DatabaseService {
   }
 
   static getUsersList(): AuthUser[] {
-    return loadTable<AuthUser>(STORAGE_KEYS.USERS, SEED_USERS);
+    const rawUsers = loadTable<AuthUser>(STORAGE_KEYS.USERS, SEED_USERS);
+    return rawUsers.map((u) => ({
+      ...u,
+      email: formatOpdEmail(u.email || u.username),
+    }));
   }
 
   static getCurrentSessionUser(): AuthUser | null {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.SESSION_USER);
       if (!raw) return null;
-      return JSON.parse(raw) as AuthUser;
+      const parsed = JSON.parse(raw) as AuthUser;
+      return {
+        ...parsed,
+        email: formatOpdEmail(parsed.email || parsed.username),
+      };
     } catch {
       return null;
     }
@@ -519,7 +534,13 @@ export class DatabaseService {
       if (!user) {
         localStorage.removeItem(STORAGE_KEYS.SESSION_USER);
       } else {
-        localStorage.setItem(STORAGE_KEYS.SESSION_USER, JSON.stringify(user));
+        localStorage.setItem(
+          STORAGE_KEYS.SESSION_USER,
+          JSON.stringify({
+            ...user,
+            email: formatOpdEmail(user.email || user.username),
+          })
+        );
       }
     } catch (e) {
       console.error('Gagal menyimpan sesi pengguna:', e);
@@ -534,17 +555,24 @@ export class DatabaseService {
     const cleanPass = passwordInput.trim();
     const users = this.getUsersList();
 
-    const found = users.find(
-      (u) =>
+    const found = users.find((u) => {
+      const userEmail = formatOpdEmail(u.email || u.username).toLowerCase();
+      return (
         u.username.toLowerCase() === cleanUser ||
+        userEmail === cleanUser ||
         u.instansi_label.toLowerCase() === cleanUser ||
-        (u.role === 'ADMIN' && (cleanUser === 'admin' || cleanUser === 'admin_bapperida'))
-    );
+        (u.role === 'ADMIN' &&
+          (cleanUser === 'admin' ||
+            cleanUser === 'admin@oppkpke.com' ||
+            cleanUser === 'admin_bapperida'))
+      );
+    });
 
     if (!found) {
       return {
         success: false,
-        message: 'Username tidak ditemukan. Pastikan username sesuai dengan data pada Manajemen User.',
+        message:
+          'Username atau Email tidak ditemukan. Pastikan sesuai dengan data pada Manajemen User.',
       };
     }
 
@@ -558,27 +586,50 @@ export class DatabaseService {
       };
     }
 
-    this.setSessionUser(found);
+    const enrichedUser: AuthUser = {
+      ...found,
+      email: formatOpdEmail(found.email || found.username),
+    };
+
+    this.setSessionUser(enrichedUser);
+
+    // Sinkronkan autentikasi email [namaopd]@oppkpke.com ke Firebase Auth & Firestore di latar belakang
+    void (async () => {
+      const fbUser = await syncFirebaseEmailAuth(
+        enrichedUser.email || formatOpdEmail(enrichedUser.username),
+        cleanPass
+      );
+      if (fbUser) {
+        await upsertFirestoreDocument(
+          'user_accounts',
+          enrichedUser.user_id,
+          serializeUserForFirestore(enrichedUser)
+        );
+      }
+    })();
+
     return {
       success: true,
-      user: found,
-      message: `Selamat datang, ${found.instansi_lengkap || found.display_name}.`,
+      user: enrichedUser,
+      message: `Selamat datang, ${enrichedUser.instansi_lengkap || enrichedUser.display_name}.`,
     };
   }
 
   /**
-   * Tambah atau Edit Akun User (Admin maupun Instansi/OPD) oleh Admin
+   * Tambah atau Edit Akun User (Admin maupun Instansi/OPD) oleh Admin beserta email [namaopd]@oppkpke.com
    */
   static saveUserAccount(params: {
     user_id?: string | null;
     kategori: InstansiKategori;
     nama_instansi: string;
     username: string;
+    email?: string;
     password: string;
     adminName: string;
   }): { success: boolean; message: string; user?: AuthUser } {
     const cleanNama = params.nama_instansi.trim();
     const cleanUsername = params.username.trim().toLowerCase().replace(/\s+/g, '_');
+    const cleanEmail = formatOpdEmail(params.email || cleanUsername);
     const cleanPassword = params.password.trim();
 
     if (!cleanNama || !cleanUsername || !cleanPassword) {
@@ -592,12 +643,15 @@ export class DatabaseService {
     const opds = this.getOpdList();
 
     const duplicate = users.find(
-      (u) => u.username.toLowerCase() === cleanUsername && u.user_id !== params.user_id
+      (u) =>
+        (u.username.toLowerCase() === cleanUsername ||
+          formatOpdEmail(u.email || u.username) === cleanEmail) &&
+        u.user_id !== params.user_id
     );
     if (duplicate) {
       return {
         success: false,
-        message: `User name "${cleanUsername}" sudah digunakan oleh ${duplicate.instansi_lengkap}.`,
+        message: `User name "${cleanUsername}" (${cleanEmail}) sudah digunakan oleh ${duplicate.instansi_lengkap}.`,
       };
     }
 
@@ -623,6 +677,7 @@ export class DatabaseService {
         role: targetRole,
         kategori: params.kategori,
         username: cleanUsername,
+        email: cleanEmail,
         password_hint: cleanPassword,
         display_name: isRoleAdmin ? `Admin (${cleanUsername})` : cleanNama,
         instansi_label: shortLabel,
@@ -668,12 +723,12 @@ export class DatabaseService {
         user_role: 'ADMIN',
         user_name: params.adminName,
         aksi: 'Perbarui Akun User',
-        detail_perubahan: `Memperbarui akun [${params.kategori} - Role ${targetRole}] "${cleanNama}" (username: ${cleanUsername}).`,
+        detail_perubahan: `Memperbarui akun [${params.kategori} - Role ${targetRole}] "${cleanNama}" (username: ${cleanUsername}, email: ${cleanEmail}).`,
       });
 
       return {
         success: true,
-        message: `Akun user "${cleanUsername}" (Role: ${targetRole}) berhasil diperbarui.`,
+        message: `Akun user "${cleanUsername}" (${cleanEmail}) berhasil diperbarui.`,
         user: updatedUser,
       };
     } else {
@@ -685,6 +740,7 @@ export class DatabaseService {
       const newUser: AuthUser = {
         user_id: newUserId,
         username: cleanUsername,
+        email: cleanEmail,
         password_hint: cleanPassword,
         role: targetRole,
         opd_id: newOpdId,
@@ -720,12 +776,12 @@ export class DatabaseService {
         user_role: 'ADMIN',
         user_name: params.adminName,
         aksi: 'Tambah Akun User Baru',
-        detail_perubahan: `Menambahkan akun [${params.kategori} - Role ${targetRole}] "${cleanNama}" (username: ${cleanUsername}).`,
+        detail_perubahan: `Menambahkan akun [${params.kategori} - Role ${targetRole}] "${cleanNama}" (username: ${cleanUsername}, email: ${cleanEmail}).`,
       });
 
       return {
         success: true,
-        message: `Akun user baru "${cleanUsername}" (Role: ${targetRole}) berhasil ditambahkan.`,
+        message: `Akun user baru "${cleanUsername}" (${cleanEmail}) berhasil ditambahkan.`,
         user: newUser,
       };
     }
@@ -773,7 +829,7 @@ export class DatabaseService {
       aksi: 'Hapus Akun User',
       detail_perubahan: `Menghapus akun [${target.kategori || 'OPD/Dinas/Badan'}] "${
         target.instansi_lengkap
-      }" (username: ${target.username}).`,
+      }" (username: ${target.username}, email: ${formatOpdEmail(target.email || target.username)}).`,
     });
 
     return {
@@ -790,6 +846,7 @@ export class DatabaseService {
       kategori: InstansiKategori;
       nama_instansi: string;
       username: string;
+      email?: string;
       password: string;
     }[];
     resetMatrixData?: boolean;
@@ -812,6 +869,7 @@ export class DatabaseService {
       }
       usedUsernames.add(cleanUsername);
 
+      const cleanEmail = formatOpdEmail(acc.email || cleanUsername);
       const opdId = isAdminKat ? null : `opd-${cleanUsername}-${index + 1}`;
       const shortLabel = isAdminKat
         ? 'ADMIN'
@@ -833,6 +891,7 @@ export class DatabaseService {
       newUsers.push({
         user_id: `usr-${cleanUsername}-${index + 1}`,
         username: cleanUsername,
+        email: cleanEmail,
         password_hint: cleanPassword,
         role: isAdminKat ? 'ADMIN' : 'OPD',
         opd_id: opdId,
@@ -844,11 +903,11 @@ export class DatabaseService {
       });
     });
 
-    // Pastikan selalu ada minimal 1 akun Admin (username: admin, password: admin, role: ADMIN)
     if (!newUsers.some((u) => u.role === 'ADMIN')) {
       newUsers.unshift({
         user_id: 'usr-admin',
         username: 'admin',
+        email: 'admin@oppkpke.com',
         password_hint: 'admin',
         role: 'ADMIN',
         opd_id: null,
@@ -892,7 +951,7 @@ export class DatabaseService {
       user_role: 'ADMIN',
       user_name: params.adminName,
       aksi: 'Reset Semua Akun User',
-      detail_perubahan: `Mereset seluruh akun user dan menyimpan ${newUsers.length} akun baru per kategori.${
+      detail_perubahan: `Mereset seluruh akun user dan menyimpan ${newUsers.length} akun baru per kategori dengan format email [namaopd]@oppkpke.com.${
         params.resetMatrixData ? ' Data matriks juga direset.' : ''
       }`,
     });
@@ -902,7 +961,7 @@ export class DatabaseService {
       message:
         newUsers.length > 1
           ? `Berhasil mereset semua akun dan menyimpan ${newUsers.length} akun user (termasuk Admin).`
-          : 'Semua akun instansi berhasil direset. Akun Admin (admin / admin) tetap aktif.',
+          : 'Semua akun instansi berhasil direset. Akun Admin (admin@oppkpke.com) tetap aktif.',
       count: newUsers.length,
     };
   }
@@ -974,9 +1033,6 @@ export class DatabaseService {
     return newLog;
   }
 
-  /**
-   * Ambil baris matriks yang telah di-join dengan tabel OPD, PeriodePelaporan, dan 2 baris RealisasiSemester
-   */
   static getEnrichedMatrixRows(periodeId: string, opdIdFilter?: string): EnrichedMatrixRow[] {
     const periodes = this.getPeriodeList();
     const opds = this.getOpdList();
@@ -1070,9 +1126,6 @@ export class DatabaseService {
     };
   }
 
-  /**
-   * Tambah baris baru atau perbarui seluruh elemen matriks mulai dari Kode Rekening hingga Realisasi Semester 1 & 2.
-   */
   static saveOpdMatrixAndRealisasi(params: {
     matrix_id?: string | null;
     periode_id: string;
@@ -1121,7 +1174,7 @@ export class DatabaseService {
     const now = new Date().toISOString();
 
     let targetMatrixId = params.matrix_id || '';
-    let matrixIdx = targetMatrixId
+    const matrixIdx = targetMatrixId
       ? matrices.findIndex((m) => m.matrix_id === targetMatrixId)
       : -1;
     const isNewRow = matrixIdx === -1;
@@ -1377,7 +1430,6 @@ export class DatabaseService {
 
     saveTable(STORAGE_KEYS.REALISASI, realisasis);
 
-    // Sinkronisasi langsung ke Cloud Firestore jika pengguna terhubung
     if (auth.currentUser) {
       const targetS1 = realisasis.find(
         (r) => r.matrix_id === targetMatrix.matrix_id && r.semester === 1
@@ -1432,9 +1484,6 @@ export class DatabaseService {
     };
   }
 
-  /**
-   * Hapus baris subkegiatan matriks beserta data realisasi semesternya
-   */
   static deleteMatrixRow(params: {
     matrix_id: string;
     userRole: UserRole;
@@ -1496,9 +1545,6 @@ export class DatabaseService {
     };
   }
 
-  /**
-   * Verifikasi independen per semester oleh Admin Bapperida
-   */
   static verifySemester(params: {
     matrix_id: string;
     semester: SemesterNumber;
@@ -1581,9 +1627,6 @@ export class DatabaseService {
     };
   }
 
-  /**
-   * Pengaturan buka/tutup periode pelaporan Semester 1 dan Semester 2 oleh Admin
-   */
   static updatePeriodeSettings(
     periode_id: string,
     updates: Partial<
@@ -1636,9 +1679,6 @@ export class DatabaseService {
     return periodes;
   }
 
-  /**
-   * Tambah tahun periode baru agar aplikasi mudah dikembangkan untuk tahun berikutnya
-   */
   static createNewYearPeriode(
     tahunBaru: number,
     copyBaseFromPeriodeId: string | null,
@@ -1734,9 +1774,6 @@ export class DatabaseService {
     };
   }
 
-  /**
-   * Import data dasar program/kegiatan/subkegiatan dari file Excel
-   */
   static importBaseMatrixFromExcel(
     periode_id: string,
     rows: ParsedExcelBaseRow[],
@@ -1816,9 +1853,6 @@ export class DatabaseService {
     return { importedCount };
   }
 
-  /**
-   * Reset database ke data awal Kabupaten Blora
-   */
   static resetToSeedData(): void {
     saveTable(STORAGE_KEYS.PERIODE, SEED_PERIODE);
     saveTable(STORAGE_KEYS.OPD, SEED_OPD);
