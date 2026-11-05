@@ -12,6 +12,8 @@ export const BloraShieldLogo: React.FC<{ className?: string }> = ({
   <img
     src={BLORA_LOGO_URL}
     alt="Lambang Kabupaten Blora"
+    width={40}
+    height={40}
     className={`${className} object-contain select-none`}
   />
 );
@@ -28,6 +30,8 @@ export const DefaultProfileAvatar: React.FC<{ className?: string }> = ({
   >
     <svg
       viewBox="0 0 24 24"
+      width={20}
+      height={20}
       fill="currentColor"
       className="w-4/5 h-4/5 mt-1.5"
       aria-hidden="true"
