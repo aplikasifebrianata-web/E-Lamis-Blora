@@ -1,0 +1,6 @@
+{
+  "summary": "Rencana implementasi 6 poin penyempurnaan aplikasi E-OPPKPKE Blora:\n1. Isolasi penuh login OPD (menghapus total dropdown ganti akun di kanan atas dan hanya menampilkan data OPD terkait).\n2. Pemilihan Tahun 2026 dan 2027 serta menampilkan badge status tahun dan semester di header aplikasi.\n3. Menghapus tombol input data matriks di header atas.\n4. Input kode rekening otomatis terformat dengan titik (_.__.__._.__.____).\n5. Progress bar persentase kelengkapan pada modal popout dan baris tabel matriks.\n6. Fleksibilitas pengisian aktivitas real (cukup mengisi minimal salah satu aktivitas: Langsung, Tidak Langsung, atau Penunjang).",
+  "updatedAt": "2026-11-05T02:36:54.882201443Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
