@@ -17,7 +17,7 @@ export default defineConfig(() => {
       assetsDir: 'assets',
       emptyOutDir: true,
       sourcemap: false,
-      chunkSizeWarningLimit: 3000,
+      chunkSizeWarningLimit: 4000,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
