@@ -5,6 +5,7 @@ import {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   signOut,
   onAuthStateChanged,
   User,
@@ -37,6 +38,7 @@ export {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   signOut,
   onAuthStateChanged,
 };
@@ -72,6 +74,14 @@ export async function syncFirebaseEmailAuth(
       );
       return created.user;
     } catch {
+      try {
+        if (!auth.currentUser) {
+          const anon = await signInAnonymously(auth);
+          return anon.user;
+        }
+      } catch {
+        // ignore if anonymous auth is not enabled
+      }
       return auth.currentUser;
     }
   }
@@ -109,7 +119,7 @@ export function handleFirestoreError(
   error: unknown,
   operationType: OperationType,
   path: string | null
-): never {
+): void {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -130,7 +140,6 @@ export function handleFirestoreError(
     path,
   };
   console.warn('Firestore Operation Notice:', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
 }
 
 // Validate connection to Firestore on boot

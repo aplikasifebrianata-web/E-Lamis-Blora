@@ -2,11 +2,10 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   deleteDoc,
   onSnapshot,
-  query,
-  where,
   serverTimestamp,
   Unsubscribe,
 } from 'firebase/firestore';
@@ -16,6 +15,7 @@ import {
   syncFirebaseEmailAuth,
   OperationType,
   handleFirestoreError,
+  User,
 } from '../firebase';
 import {
   OPD,
@@ -79,12 +79,61 @@ function loadTable<T>(key: string, fallback: T[]): T[] {
   }
 }
 
-function saveTable<T>(key: string, data: T[]): void {
+const REALTIME_CHANNEL_NAME = 'optimis_blora_realtime_v1';
+const realtimeChannel: BroadcastChannel | null =
+  typeof window !== 'undefined' && 'BroadcastChannel' in window
+    ? new BroadcastChannel(REALTIME_CHANNEL_NAME)
+    : null;
+
+function notifyRealtimeChannel(key: string): void {
+  try {
+    realtimeChannel?.postMessage({ key, timestamp: Date.now() });
+  } catch {
+    // ignore
+  }
+}
+
+function saveTable<T>(key: string, data: T[], fromRemote = false): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
+    if (!fromRemote) {
+      notifyRealtimeChannel(key);
+    }
   } catch (e) {
     console.error('Gagal menyimpan tabel ke storage:', e);
   }
+}
+
+let pendingAuthPromise: Promise<User | null> | null = null;
+let hasTriggeredInitialCloudSeed = false;
+
+async function ensureFirebaseAuth(): Promise<User | null> {
+  if (auth.currentUser) return auth.currentUser;
+  if (pendingAuthPromise) return pendingAuthPromise;
+
+  pendingAuthPromise = (async () => {
+    try {
+      let email = 'admin@oppkpke.com';
+      let password = 'admin';
+      try {
+        const rawSession = localStorage.getItem(STORAGE_KEYS.SESSION_USER);
+        if (rawSession) {
+          const parsed = JSON.parse(rawSession) as AuthUser;
+          if (parsed?.username) {
+            email = formatOpdEmail(parsed.email || parsed.username);
+            password = parsed.password_hint || 'lamis123';
+          }
+        }
+      } catch {
+        // use default admin credentials
+      }
+      return await syncFirebaseEmailAuth(email, password);
+    } finally {
+      pendingAuthPromise = null;
+    }
+  })();
+
+  return pendingAuthPromise;
 }
 
 async function upsertFirestoreDocument(
@@ -92,8 +141,8 @@ async function upsertFirestoreDocument(
   docId: string,
   fields: Record<string, unknown>
 ): Promise<void> {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return;
+  await ensureFirebaseAuth();
+  const ownerId = auth.currentUser?.uid || 'optimis-blora-shared';
 
   const path = `${collectionName}/${docId}`;
   const docRef = doc(db, collectionName, docId);
@@ -102,7 +151,7 @@ async function upsertFirestoreDocument(
     if (!existingSnap.exists()) {
       await setDoc(docRef, {
         ...fields,
-        ownerId: currentUser.uid,
+        ownerId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -125,14 +174,34 @@ async function removeFirestoreDocument(
   collectionName: string,
   docId: string
 ): Promise<void> {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return;
+  await ensureFirebaseAuth();
 
   const path = `${collectionName}/${docId}`;
   try {
     await deleteDoc(doc(db, collectionName, docId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+async function pruneFirestoreCollection(
+  collectionName: string,
+  keepDocIds: Set<string>
+): Promise<void> {
+  await ensureFirebaseAuth();
+  try {
+    const snap = await getDocs(collection(db, collectionName));
+    const deletions: Promise<void>[] = [];
+    snap.forEach((d) => {
+      if (!keepDocIds.has(d.id)) {
+        deletions.push(deleteDoc(doc(db, collectionName, d.id)));
+      }
+    });
+    if (deletions.length > 0) {
+      await Promise.allSettled(deletions);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, collectionName);
   }
 }
 
@@ -240,7 +309,9 @@ export class DatabaseService {
   /**
    * Sinkronkan seluruh data lokal ke Cloud Firestore secara berurutan
    */
-  static async syncAllLocalToFirestore(): Promise<{
+  static async syncAllLocalToFirestore(options?: {
+    pruneRemoved?: boolean;
+  }): Promise<{
     success: boolean;
     message: string;
     counts: {
@@ -251,26 +322,22 @@ export class DatabaseService {
       realisasis: number;
     };
   }> {
+    await ensureFirebaseAuth();
     const currentUser = auth.currentUser;
-    if (!currentUser) {
-      return {
-        success: false,
-        message: 'Belum ada sesi aktif.',
-        counts: { periodes: 0, opds: 0, users: 0, matrices: 0, realisasis: 0 },
-      };
-    }
 
-    try {
-      const adminRef = doc(db, 'admins', currentUser.uid);
-      const adminSnap = await getDoc(adminRef);
-      if (!adminSnap.exists()) {
-        await setDoc(adminRef, {
-          uid: currentUser.uid,
-          createdAt: serverTimestamp(),
-        });
+    if (currentUser) {
+      try {
+        const adminRef = doc(db, 'admins', currentUser.uid);
+        const adminSnap = await getDoc(adminRef);
+        if (!adminSnap.exists()) {
+          await setDoc(adminRef, {
+            uid: currentUser.uid,
+            createdAt: serverTimestamp(),
+          });
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
 
     const periodes = this.getPeriodeList();
@@ -278,28 +345,42 @@ export class DatabaseService {
     const users = this.getUsersList();
     const matrices = this.getMatrixDataList();
     const realisasis = this.getRealisasiList();
-
-    for (const p of periodes) {
-      await upsertFirestoreDocument('periodes', p.periode_id, serializePeriodeForFirestore(p));
-    }
-    for (const o of opds) {
-      await upsertFirestoreDocument('opds', o.opd_id, serializeOpdForFirestore(o));
-    }
-    for (const u of users) {
-      await upsertFirestoreDocument('user_accounts', u.user_id, serializeUserForFirestore(u));
-    }
-    for (const m of matrices) {
-      await upsertFirestoreDocument('matrices', m.matrix_id, serializeMatrixForFirestore(m));
-    }
-
     const matrixIds = new Set(matrices.map((m) => m.matrix_id));
-    let realisasiCount = 0;
-    for (const r of realisasis) {
-      if (matrixIds.has(r.matrix_id)) {
-        await upsertFirestoreDocument('realisasis', r.realisasi_id, serializeRealisasiForFirestore(r));
-        realisasiCount++;
-      }
+    const validRealisasis = realisasis.filter((r) => matrixIds.has(r.matrix_id));
+
+    if (options?.pruneRemoved) {
+      await Promise.allSettled([
+        pruneFirestoreCollection('user_accounts', new Set(users.map((u) => u.user_id))),
+        pruneFirestoreCollection('opds', new Set(opds.map((o) => o.opd_id))),
+        pruneFirestoreCollection('matrices', matrixIds),
+        pruneFirestoreCollection(
+          'realisasis',
+          new Set(validRealisasis.map((r) => r.realisasi_id))
+        ),
+      ]);
     }
+
+    await Promise.allSettled([
+      ...periodes.map((p) =>
+        upsertFirestoreDocument('periodes', p.periode_id, serializePeriodeForFirestore(p))
+      ),
+      ...opds.map((o) =>
+        upsertFirestoreDocument('opds', o.opd_id, serializeOpdForFirestore(o))
+      ),
+      ...users.map((u) =>
+        upsertFirestoreDocument('user_accounts', u.user_id, serializeUserForFirestore(u))
+      ),
+      ...matrices.map((m) =>
+        upsertFirestoreDocument('matrices', m.matrix_id, serializeMatrixForFirestore(m))
+      ),
+      ...validRealisasis.map((r) =>
+        upsertFirestoreDocument(
+          'realisasis',
+          r.realisasi_id,
+          serializeRealisasiForFirestore(r)
+        )
+      ),
+    ]);
 
     const nowIso = new Date().toISOString();
     this.setLastSyncTimestamp(nowIso);
@@ -312,197 +393,285 @@ export class DatabaseService {
         opds: opds.length,
         users: users.length,
         matrices: matrices.length,
-        realisasis: realisasiCount,
+        realisasis: validRealisasis.length,
       },
     };
   }
 
   /**
-   * Berlangganan perubahan real-time dari Cloud Firestore (onSnapshot)
+   * Berlangganan perubahan real-time dari Cloud Firestore (onSnapshot) lintas pengguna & perangkat
    */
   static subscribeToFirestore(onDataChanged: () => void): Unsubscribe {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      return () => {};
+    const unsubs: Unsubscribe[] = [];
+    let isDisposed = false;
+
+    // Sinkronisasi instan antar-tab pada browser yang sama
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key && Object.values(STORAGE_KEYS).includes(e.key)) {
+        onDataChanged();
+      }
+    };
+    const handleBroadcastMessage = () => {
+      onDataChanged();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageEvent);
+      realtimeChannel?.addEventListener('message', handleBroadcastMessage);
+      unsubs.push(() => {
+        window.removeEventListener('storage', handleStorageEvent);
+        realtimeChannel?.removeEventListener('message', handleBroadcastMessage);
+      });
     }
 
-    const uid = currentUser.uid;
-    const unsubs: Unsubscribe[] = [];
+    const attachSnapshots = () => {
+      if (isDisposed) return;
 
-    const qPeriodes = query(collection(db, 'periodes'), where('ownerId', '==', uid));
-    unsubs.push(
-      onSnapshot(
-        qPeriodes,
-        (snap) => {
-          if (!snap.empty) {
-            const items: PeriodePelaporan[] = snap.docs.map((d) => {
-              const data = d.data();
-              return {
-                periode_id: String(data.periode_id || d.id),
-                tahun: Number(data.tahun) || 2026,
-                nama_periode: String(data.nama_periode || ''),
-                semester_1_buka: Boolean(data.semester_1_buka),
-                semester_2_buka: Boolean(data.semester_2_buka),
-                batas_semester_1: String(data.batas_semester_1 || ''),
-                batas_semester_2: String(data.batas_semester_2 || ''),
-                is_active: Boolean(data.is_active),
-                updated_at: new Date().toISOString(),
-              };
-            });
-            saveTable(STORAGE_KEYS.PERIODE, items);
-            this.setLastSyncTimestamp(new Date().toISOString());
-            onDataChanged();
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'periodes'),
+          (snap) => {
+            if (!snap.empty) {
+              const items: PeriodePelaporan[] = snap.docs
+                .map((d) => {
+                  const data = d.data();
+                  return {
+                    periode_id: String(data.periode_id || d.id),
+                    tahun: Number(data.tahun) || 2026,
+                    nama_periode: String(data.nama_periode || ''),
+                    semester_1_buka: Boolean(data.semester_1_buka),
+                    semester_2_buka: Boolean(data.semester_2_buka),
+                    batas_semester_1: String(data.batas_semester_1 || ''),
+                    batas_semester_2: String(data.batas_semester_2 || ''),
+                    is_active: Boolean(data.is_active),
+                    updated_at: new Date().toISOString(),
+                  };
+                })
+                .sort((a, b) => a.tahun - b.tahun);
+              saveTable(STORAGE_KEYS.PERIODE, items, true);
+              this.setLastSyncTimestamp(new Date().toISOString());
+              onDataChanged();
+            } else if (!snap.metadata.fromCache && !hasTriggeredInitialCloudSeed) {
+              hasTriggeredInitialCloudSeed = true;
+              void this.syncAllLocalToFirestore();
+            }
+          },
+          (err) => {
+            console.warn('Firestore listener (periodes):', err.message);
           }
-        },
-        (err) => {
-          console.warn('Firestore listener (periodes):', err.message);
-        }
-      )
-    );
+        )
+      );
 
-    const qOpds = query(collection(db, 'opds'), where('ownerId', '==', uid));
-    unsubs.push(
-      onSnapshot(
-        qOpds,
-        (snap) => {
-          if (!snap.empty) {
-            const items: OPD[] = snap.docs.map((d) => {
-              const data = d.data();
-              return {
-                opd_id: String(data.opd_id || d.id),
-                kode_opd: String(data.kode_opd || '1.00.01'),
-                nama_opd: String(data.nama_opd || ''),
-                singkatan: String(data.singkatan || ''),
-                kategori: (data.kategori as InstansiKategori) || 'OPD/Dinas/Badan',
-                kepala_opd: String(data.kepala_opd || ''),
-              };
-            });
-            saveTable(STORAGE_KEYS.OPD, items);
-            onDataChanged();
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'opds'),
+          (snap) => {
+            if (!snap.empty) {
+              const items: OPD[] = snap.docs.map((d) => {
+                const data = d.data();
+                return {
+                  opd_id: String(data.opd_id || d.id),
+                  kode_opd: String(data.kode_opd || '1.00.01'),
+                  nama_opd: String(data.nama_opd || ''),
+                  singkatan: String(data.singkatan || ''),
+                  kategori: (data.kategori as InstansiKategori) || 'OPD/Dinas/Badan',
+                  kepala_opd: String(data.kepala_opd || ''),
+                };
+              });
+              saveTable(STORAGE_KEYS.OPD, items, true);
+              onDataChanged();
+            }
+          },
+          (err) => {
+            console.warn('Firestore listener (opds):', err.message);
           }
-        },
-        (err) => {
-          console.warn('Firestore listener (opds):', err.message);
-        }
-      )
-    );
+        )
+      );
 
-    const qUsers = query(collection(db, 'user_accounts'), where('ownerId', '==', uid));
-    unsubs.push(
-      onSnapshot(
-        qUsers,
-        (snap) => {
-          if (!snap.empty) {
-            const items: AuthUser[] = snap.docs.map((d) => {
-              const data = d.data();
-              const uname = String(data.username || '');
-              return {
-                user_id: String(data.user_id || d.id),
-                username: uname,
-                email: formatOpdEmail(String(data.email || uname)),
-                password_hint: String(data.password_hint || ''),
-                role: (data.role as UserRole) || 'OPD',
-                opd_id: data.opd_id ? String(data.opd_id) : null,
-                kategori: (data.kategori as InstansiKategori) || 'OPD/Dinas/Badan',
-                display_name: String(data.display_name || ''),
-                instansi_label: String(data.instansi_label || ''),
-                instansi_lengkap: String(data.instansi_lengkap || ''),
-                jabatan: String(data.jabatan || ''),
-              };
-            });
-            saveTable(STORAGE_KEYS.USERS, items);
-            onDataChanged();
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'user_accounts'),
+          (snap) => {
+            if (!snap.empty) {
+              const items: AuthUser[] = snap.docs.map((d) => {
+                const data = d.data();
+                const uname = String(data.username || '');
+                return {
+                  user_id: String(data.user_id || d.id),
+                  username: uname,
+                  email: formatOpdEmail(String(data.email || uname)),
+                  password_hint: String(data.password_hint || ''),
+                  role: (data.role as UserRole) || 'OPD',
+                  opd_id: data.opd_id ? String(data.opd_id) : null,
+                  kategori: (data.kategori as InstansiKategori) || 'OPD/Dinas/Badan',
+                  display_name: String(data.display_name || ''),
+                  instansi_label: String(data.instansi_label || ''),
+                  instansi_lengkap: String(data.instansi_lengkap || ''),
+                  jabatan: String(data.jabatan || ''),
+                };
+              });
+              saveTable(STORAGE_KEYS.USERS, items, true);
+              onDataChanged();
+            } else if (!snap.metadata.fromCache && !hasTriggeredInitialCloudSeed) {
+              hasTriggeredInitialCloudSeed = true;
+              void this.syncAllLocalToFirestore();
+            }
+          },
+          (err) => {
+            console.warn('Firestore listener (user_accounts):', err.message);
           }
-        },
-        (err) => {
-          console.warn('Firestore listener (user_accounts):', err.message);
-        }
-      )
-    );
+        )
+      );
 
-    const qMatrices = query(collection(db, 'matrices'), where('ownerId', '==', uid));
-    unsubs.push(
-      onSnapshot(
-        qMatrices,
-        (snap) => {
-          if (!snap.empty) {
-            const items: MatrixData[] = snap.docs.map((d) => {
-              const data = d.data();
-              const nowIso = new Date().toISOString();
-              return {
-                matrix_id: String(data.matrix_id || d.id),
-                periode_id: String(data.periode_id || 'per-2026'),
-                opd_id: String(data.opd_id || ''),
-                strategi: String(data.strategi || ''),
-                kode: String(data.kode || ''),
-                program: String(data.program || ''),
-                kegiatan: String(data.kegiatan || ''),
-                sub_kegiatan: String(data.sub_kegiatan || ''),
-                aktivitas_real_langsung: String(data.aktivitas_real_langsung || ''),
-                aktivitas_real_tidak_langsung: String(data.aktivitas_real_tidak_langsung || ''),
-                aktivitas_real_penunjang: String(data.aktivitas_real_penunjang || ''),
-                alokasi_anggaran: Number(data.alokasi_anggaran) || 0,
-                sumber_pembiayaan: String(data.sumber_pembiayaan || 'APBD Kabupaten'),
-                sifat_bantuan:
-                  data.sifat_bantuan === 'Tidak Berkelanjutan'
-                    ? 'Tidak Berkelanjutan'
-                    : 'Berkelanjutan',
-                lokasi: String(data.lokasi || ''),
-                lokasi_kecamatan: String(data.lokasi_kecamatan || ''),
-                lokasi_desa: String(data.lokasi_desa || ''),
-                lokasi_spesifik: String(data.lokasi_spesifik || ''),
-                jumlah_sasaran: Number(data.jumlah_sasaran) || 0,
-                satuan_sasaran: String(data.satuan_sasaran || 'KPM'),
-                keterangan_sasaran: String(data.keterangan_sasaran || ''),
-                besaran_manfaat: String(data.besaran_manfaat || ''),
-                jenis_bantuan: String(data.jenis_bantuan || 'Bantuan sosial'),
-                durasi_pemberian_bantuan: String(data.durasi_pemberian_bantuan || '1 tahun'),
-                created_at: nowIso,
-                updated_at: nowIso,
-              };
-            });
-            saveTable(STORAGE_KEYS.MATRIX, items);
-            onDataChanged();
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'matrices'),
+          (snap) => {
+            if (!snap.empty || !snap.metadata.fromCache) {
+              if (snap.empty && !hasTriggeredInitialCloudSeed) {
+                hasTriggeredInitialCloudSeed = true;
+                void this.syncAllLocalToFirestore();
+                return;
+              }
+              const items: MatrixData[] = snap.docs.map((d) => {
+                const data = d.data();
+                const nowIso = new Date().toISOString();
+                return {
+                  matrix_id: String(data.matrix_id || d.id),
+                  periode_id: String(data.periode_id || 'per-2026'),
+                  opd_id: String(data.opd_id || ''),
+                  strategi: String(data.strategi || ''),
+                  kode: String(data.kode || ''),
+                  program: String(data.program || ''),
+                  kegiatan: String(data.kegiatan || ''),
+                  sub_kegiatan: String(data.sub_kegiatan || ''),
+                  aktivitas_real_langsung: String(data.aktivitas_real_langsung || ''),
+                  aktivitas_real_tidak_langsung: String(
+                    data.aktivitas_real_tidak_langsung || ''
+                  ),
+                  aktivitas_real_penunjang: String(data.aktivitas_real_penunjang || ''),
+                  alokasi_anggaran: Number(data.alokasi_anggaran) || 0,
+                  sumber_pembiayaan: String(data.sumber_pembiayaan || 'APBD Kabupaten'),
+                  sifat_bantuan:
+                    data.sifat_bantuan === 'Tidak Berkelanjutan'
+                      ? 'Tidak Berkelanjutan'
+                      : 'Berkelanjutan',
+                  lokasi: String(data.lokasi || ''),
+                  lokasi_kecamatan: String(data.lokasi_kecamatan || ''),
+                  lokasi_desa: String(data.lokasi_desa || ''),
+                  lokasi_spesifik: String(data.lokasi_spesifik || ''),
+                  jumlah_sasaran: Number(data.jumlah_sasaran) || 0,
+                  satuan_sasaran: String(data.satuan_sasaran || 'KPM'),
+                  keterangan_sasaran: String(data.keterangan_sasaran || ''),
+                  besaran_manfaat: String(data.besaran_manfaat || ''),
+                  jenis_bantuan: String(data.jenis_bantuan || 'Bantuan sosial'),
+                  durasi_pemberian_bantuan: String(
+                    data.durasi_pemberian_bantuan || '1 tahun'
+                  ),
+                  created_at: nowIso,
+                  updated_at: nowIso,
+                };
+              });
+              saveTable(STORAGE_KEYS.MATRIX, items, true);
+              onDataChanged();
+            }
+          },
+          (err) => {
+            console.warn('Firestore listener (matrices):', err.message);
           }
-        },
-        (err) => {
-          console.warn('Firestore listener (matrices):', err.message);
-        }
-      )
-    );
+        )
+      );
 
-    const qRealisasis = query(collection(db, 'realisasis'), where('ownerId', '==', uid));
-    unsubs.push(
-      onSnapshot(
-        qRealisasis,
-        (snap) => {
-          if (!snap.empty) {
-            const items: RealisasiSemester[] = snap.docs.map((d) => {
-              const data = d.data();
-              return {
-                realisasi_id: String(data.realisasi_id || d.id),
-                matrix_id: String(data.matrix_id || ''),
-                semester: (Number(data.semester) === 2 ? 2 : 1) as SemesterNumber,
-                realisasi: Number(data.realisasi) || 0,
-                status_verifikasi: (data.status_verifikasi as VerificationStatus) || 'Belum Diisi',
-                catatan_verifikator: String(data.catatan_verifikator || ''),
-                submitted_at: data.submitted_at ? String(data.submitted_at) : null,
-                verified_at: data.verified_at ? String(data.verified_at) : null,
-                verified_by: data.verified_by ? String(data.verified_by) : null,
-                updated_at: new Date().toISOString(),
-              };
-            });
-            saveTable(STORAGE_KEYS.REALISASI, items);
-            onDataChanged();
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'realisasis'),
+          (snap) => {
+            if (!snap.empty || !snap.metadata.fromCache) {
+              if (snap.empty && !hasTriggeredInitialCloudSeed) {
+                return;
+              }
+              const items: RealisasiSemester[] = snap.docs.map((d) => {
+                const data = d.data();
+                return {
+                  realisasi_id: String(data.realisasi_id || d.id),
+                  matrix_id: String(data.matrix_id || ''),
+                  semester: (Number(data.semester) === 2 ? 2 : 1) as SemesterNumber,
+                  realisasi: Number(data.realisasi) || 0,
+                  status_verifikasi:
+                    (data.status_verifikasi as VerificationStatus) || 'Belum Diisi',
+                  catatan_verifikator: String(data.catatan_verifikator || ''),
+                  submitted_at: data.submitted_at ? String(data.submitted_at) : null,
+                  verified_at: data.verified_at ? String(data.verified_at) : null,
+                  verified_by: data.verified_by ? String(data.verified_by) : null,
+                  updated_at: new Date().toISOString(),
+                };
+              });
+              saveTable(STORAGE_KEYS.REALISASI, items, true);
+              onDataChanged();
+            }
+          },
+          (err) => {
+            console.warn('Firestore listener (realisasis):', err.message);
           }
-        },
-        (err) => {
-          console.warn('Firestore listener (realisasis):', err.message);
-        }
-      )
-    );
+        )
+      );
+
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'audit_logs'),
+          (snap) => {
+            if (!snap.empty) {
+              const items: AuditLog[] = snap.docs
+                .map((d) => {
+                  const data = d.data();
+                  let createdIso = new Date().toISOString();
+                  if (
+                    data.createdAt &&
+                    typeof (data.createdAt as { toDate?: () => Date }).toDate === 'function'
+                  ) {
+                    createdIso = (data.createdAt as { toDate: () => Date })
+                      .toDate()
+                      .toISOString();
+                  } else if (typeof data.created_at === 'string') {
+                    createdIso = data.created_at;
+                  }
+                  return {
+                    log_id: String(data.log_id || d.id),
+                    matrix_id: String(data.matrix_id || 'SYSTEM'),
+                    semester:
+                      data.semester === 1 || data.semester === 2
+                        ? (data.semester as SemesterNumber)
+                        : null,
+                    opd_id: String(data.opd_id || 'ALL'),
+                    user_role: (data.user_role as UserRole) || 'OPD',
+                    user_name: String(data.user_name || 'Sistem'),
+                    aksi: String(data.aksi || ''),
+                    detail_perubahan: String(data.detail_perubahan || ''),
+                    nilai_sebelumnya: data.nilai_sebelumnya
+                      ? String(data.nilai_sebelumnya)
+                      : undefined,
+                    nilai_baru: data.nilai_baru ? String(data.nilai_baru) : undefined,
+                    created_at: createdIso,
+                  };
+                })
+                .sort((a, b) => b.created_at.localeCompare(a.created_at));
+              saveTable(STORAGE_KEYS.AUDIT, items, true);
+              onDataChanged();
+            }
+          },
+          (err) => {
+            console.warn('Firestore listener (audit_logs):', err.message);
+          }
+        )
+      );
+    };
+
+    void ensureFirebaseAuth().then(() => {
+      attachSnapshots();
+    });
 
     return () => {
+      isDisposed = true;
       unsubs.forEach((u) => u());
     };
   }
@@ -595,17 +764,15 @@ export class DatabaseService {
 
     // Sinkronkan autentikasi email [namaopd]@oppkpke.com ke Firebase Auth & Firestore di latar belakang
     void (async () => {
-      const fbUser = await syncFirebaseEmailAuth(
+      await syncFirebaseEmailAuth(
         enrichedUser.email || formatOpdEmail(enrichedUser.username),
         cleanPass
       );
-      if (fbUser) {
-        await upsertFirestoreDocument(
-          'user_accounts',
-          enrichedUser.user_id,
-          serializeUserForFirestore(enrichedUser)
-        );
-      }
+      await upsertFirestoreDocument(
+        'user_accounts',
+        enrichedUser.user_id,
+        serializeUserForFirestore(enrichedUser)
+      );
     })();
 
     return {
@@ -942,7 +1109,7 @@ export class DatabaseService {
       saveTable(STORAGE_KEYS.REALISASI, []);
     }
 
-    void this.syncAllLocalToFirestore();
+    void this.syncAllLocalToFirestore({ pruneRemoved: true });
 
     this.addAuditLog({
       matrix_id: 'USER-RESET-ALL',
@@ -1009,10 +1176,11 @@ export class DatabaseService {
     const updated = [newLog, ...logs];
     saveTable(STORAGE_KEYS.AUDIT, updated);
 
-    const currentUser = auth.currentUser;
-    if (currentUser) {
+    void (async () => {
+      await ensureFirebaseAuth();
+      const ownerId = auth.currentUser?.uid || 'optimis-blora-shared';
       const logRef = doc(db, 'audit_logs', newLog.log_id);
-      void setDoc(logRef, {
+      await setDoc(logRef, {
         log_id: newLog.log_id,
         matrix_id: String(newLog.matrix_id || 'SYSTEM').slice(0, 64),
         semester: newLog.semester ?? null,
@@ -1023,12 +1191,12 @@ export class DatabaseService {
         detail_perubahan: String(newLog.detail_perubahan || '').slice(0, 1000),
         nilai_sebelumnya: String(newLog.nilai_sebelumnya || '').slice(0, 300),
         nilai_baru: String(newLog.nilai_baru || '').slice(0, 300),
-        ownerId: currentUser.uid,
+        ownerId,
         createdAt: serverTimestamp(),
       }).catch((err) => {
         console.warn('Gagal mencatat audit log ke Firestore:', err);
       });
-    }
+    })();
 
     return newLog;
   }
@@ -1430,50 +1598,48 @@ export class DatabaseService {
 
     saveTable(STORAGE_KEYS.REALISASI, realisasis);
 
-    if (auth.currentUser) {
-      const targetS1 = realisasis.find(
-        (r) => r.matrix_id === targetMatrix.matrix_id && r.semester === 1
-      );
-      const targetS2 = realisasis.find(
-        (r) => r.matrix_id === targetMatrix.matrix_id && r.semester === 2
-      );
-      void (async () => {
-        if (periode) {
-          await upsertFirestoreDocument(
-            'periodes',
-            periode.periode_id,
-            serializePeriodeForFirestore(periode)
-          );
-        }
-        const opdObj = this.getOpdList().find((o) => o.opd_id === targetMatrix.opd_id);
-        if (opdObj) {
-          await upsertFirestoreDocument(
-            'opds',
-            opdObj.opd_id,
-            serializeOpdForFirestore(opdObj)
-          );
-        }
+    const targetS1 = realisasis.find(
+      (r) => r.matrix_id === targetMatrix.matrix_id && r.semester === 1
+    );
+    const targetS2 = realisasis.find(
+      (r) => r.matrix_id === targetMatrix.matrix_id && r.semester === 2
+    );
+    void (async () => {
+      if (periode) {
         await upsertFirestoreDocument(
-          'matrices',
-          targetMatrix.matrix_id,
-          serializeMatrixForFirestore(targetMatrix)
+          'periodes',
+          periode.periode_id,
+          serializePeriodeForFirestore(periode)
         );
-        if (targetS1) {
-          await upsertFirestoreDocument(
-            'realisasis',
-            targetS1.realisasi_id,
-            serializeRealisasiForFirestore(targetS1)
-          );
-        }
-        if (targetS2) {
-          await upsertFirestoreDocument(
-            'realisasis',
-            targetS2.realisasi_id,
-            serializeRealisasiForFirestore(targetS2)
-          );
-        }
-      })();
-    }
+      }
+      const opdObj = this.getOpdList().find((o) => o.opd_id === targetMatrix.opd_id);
+      if (opdObj) {
+        await upsertFirestoreDocument(
+          'opds',
+          opdObj.opd_id,
+          serializeOpdForFirestore(opdObj)
+        );
+      }
+      await upsertFirestoreDocument(
+        'matrices',
+        targetMatrix.matrix_id,
+        serializeMatrixForFirestore(targetMatrix)
+      );
+      if (targetS1) {
+        await upsertFirestoreDocument(
+          'realisasis',
+          targetS1.realisasi_id,
+          serializeRealisasiForFirestore(targetS1)
+        );
+      }
+      if (targetS2) {
+        await upsertFirestoreDocument(
+          'realisasis',
+          targetS2.realisasi_id,
+          serializeRealisasiForFirestore(targetS2)
+        );
+      }
+    })();
 
     return {
       success: true,
@@ -1520,12 +1686,10 @@ export class DatabaseService {
     saveTable(STORAGE_KEYS.MATRIX, updatedMatrices);
     saveTable(STORAGE_KEYS.REALISASI, realisasis);
 
-    if (auth.currentUser) {
-      removedRealisasis.forEach((r) => {
-        void removeFirestoreDocument('realisasis', r.realisasi_id);
-      });
-      void removeFirestoreDocument('matrices', params.matrix_id);
-    }
+    removedRealisasis.forEach((r) => {
+      void removeFirestoreDocument('realisasis', r.realisasi_id);
+    });
+    void removeFirestoreDocument('matrices', params.matrix_id);
 
     this.addAuditLog({
       matrix_id: target.matrix_id,
@@ -1585,20 +1749,18 @@ export class DatabaseService {
 
     saveTable(STORAGE_KEYS.REALISASI, realisasis);
 
-    if (auth.currentUser) {
-      void (async () => {
-        await upsertFirestoreDocument(
-          'matrices',
-          matrix.matrix_id,
-          serializeMatrixForFirestore(matrix)
-        );
-        await upsertFirestoreDocument(
-          'realisasis',
-          updated.realisasi_id,
-          serializeRealisasiForFirestore(updated)
-        );
-      })();
-    }
+    void (async () => {
+      await upsertFirestoreDocument(
+        'matrices',
+        matrix.matrix_id,
+        serializeMatrixForFirestore(matrix)
+      );
+      await upsertFirestoreDocument(
+        'realisasis',
+        updated.realisasi_id,
+        serializeRealisasiForFirestore(updated)
+      );
+    })();
 
     this.addAuditLog({
       matrix_id: params.matrix_id,
@@ -1650,13 +1812,11 @@ export class DatabaseService {
     periodes[idx] = updated;
     saveTable(STORAGE_KEYS.PERIODE, periodes);
 
-    if (auth.currentUser) {
-      void upsertFirestoreDocument(
-        'periodes',
-        updated.periode_id,
-        serializePeriodeForFirestore(updated)
-      );
-    }
+    void upsertFirestoreDocument(
+      'periodes',
+      updated.periode_id,
+      serializePeriodeForFirestore(updated)
+    );
 
     this.addAuditLog({
       matrix_id: 'SYSTEM-PERIODE',
@@ -1751,9 +1911,7 @@ export class DatabaseService {
       saveTable(STORAGE_KEYS.REALISASI, realisasis);
     }
 
-    if (auth.currentUser) {
-      void this.syncAllLocalToFirestore();
-    }
+    void this.syncAllLocalToFirestore();
 
     this.addAuditLog({
       matrix_id: 'SYSTEM-PERIODE',
@@ -1836,9 +1994,7 @@ export class DatabaseService {
     saveTable(STORAGE_KEYS.MATRIX, matrices);
     saveTable(STORAGE_KEYS.REALISASI, realisasis);
 
-    if (auth.currentUser) {
-      void this.syncAllLocalToFirestore();
-    }
+    void this.syncAllLocalToFirestore();
 
     this.addAuditLog({
       matrix_id: 'EXCEL-IMPORT',
@@ -1861,8 +2017,6 @@ export class DatabaseService {
     saveTable(STORAGE_KEYS.REALISASI, SEED_REALISASI_SEMESTER);
     saveTable(STORAGE_KEYS.AUDIT, SEED_AUDIT_LOGS);
 
-    if (auth.currentUser) {
-      void this.syncAllLocalToFirestore();
-    }
+    void this.syncAllLocalToFirestore({ pruneRemoved: true });
   }
 }

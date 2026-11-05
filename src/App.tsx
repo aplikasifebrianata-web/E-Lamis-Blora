@@ -90,15 +90,35 @@ export default function App() {
   const [isLoadingView, setIsLoadingView] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Listener autentikasi Firebase & langganan real-time Firestore (onSnapshot)
+  // Listener autentikasi Firebase & langganan real-time Firestore (onSnapshot) lintas sesi/perangkat
   useEffect(() => {
-    const unsubFirestore = DatabaseService.subscribeToFirestore(() => {
+    const handleRealtimeRefresh = () => {
       setPeriodes(DatabaseService.getPeriodeList());
       setRefreshTick((t) => t + 1);
-    });
+      setCurrentUser((prev) => {
+        if (!prev) return null;
+        const latestUsers = DatabaseService.getUsersList();
+        const updatedSelf = latestUsers.find(
+          (u) =>
+            u.user_id === prev.user_id ||
+            u.username.toLowerCase() === prev.username.toLowerCase()
+        );
+        if (updatedSelf) {
+          DatabaseService.setSessionUser(updatedSelf);
+          return updatedSelf;
+        }
+        return prev;
+      });
+    };
+
+    let unsubFirestore = DatabaseService.subscribeToFirestore(handleRealtimeRefresh);
+
     const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser);
+      unsubFirestore();
+      unsubFirestore = DatabaseService.subscribeToFirestore(handleRealtimeRefresh);
     });
+
     return () => {
       unsubAuth();
       unsubFirestore();
@@ -167,12 +187,14 @@ export default function App() {
   };
 
   const handleQuickDemoLogin = (user: AuthUser) => {
-    DatabaseService.setSessionUser(user);
+    const res = DatabaseService.authenticateUser(user.username, user.password_hint);
+    const activeUser = res.user || user;
+    DatabaseService.setSessionUser(activeUser);
     triggerSmoothReload(() => {
-      setCurrentUser(user);
+      setCurrentUser(activeUser);
       setActiveTab('dashboard');
     });
-    showToast('success', `Masuk sebagai ${user.display_name} (${user.instansi_label}).`);
+    showToast('success', `Masuk sebagai ${activeUser.display_name} (${activeUser.instansi_label}).`);
   };
 
   const handleLogout = () => {
