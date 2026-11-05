@@ -240,7 +240,7 @@ export const SEED_USERS: AuthUser[] = [
     role: 'ADMIN',
     opd_id: null,
     kategori: 'Admin',
-    display_name: 'Administrator E-Lamis Blora',
+    display_name: 'Administrator OPTIMIS',
     instansi_label: 'ADMIN BAPPERIDA',
     instansi_lengkap: 'BADAN PERENCANAAN PEMBANGUNAN, RISET DAN INOVASI DAERAH KAB. BLORA',
     jabatan: 'Administrator & Verifikator TKPKD',

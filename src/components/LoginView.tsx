@@ -82,13 +82,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
             </div>
           </div>
 
-          {/* Tengah: Judul Utama E - LAMIS BLORA */}
+          {/* Tengah: Judul Utama OPTIMIS */}
           <div className="space-y-2.5 my-auto py-2">
             <h1 className="text-3xl sm:text-[42px] font-black tracking-tight text-[#0F2547] leading-none">
-              E - LAMIS BLORA
+              OPTIMIS
             </h1>
-            <p className="text-lg sm:text-[22px] font-bold text-[#0F2547] tracking-tight">
-              (E Laporan Kemiskinan Blora)
+            <p className="text-base sm:text-[19px] font-bold text-[#0F2547] tracking-tight leading-snug">
+              (Optimalisasi Pelaksanaan Pengentasan Kemiskinan)
             </p>
 
             {/* Garis Aksen Biru */}

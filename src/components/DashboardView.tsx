@@ -365,8 +365,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const dashboardTitle =
     userRole === 'ADMIN'
-      ? 'Selamat Datang di E-Lamis Blora (E Laporan Kemiskinan Blora)'
-      : `Selamat Datang di E-Lamis Blora — ${activeOpd.singkatan}`;
+      ? 'Selamat Datang di OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan)'
+      : `Selamat Datang di OPTIMIS — ${activeOpd.singkatan}`;
 
   return (
     <motion.div
@@ -392,7 +392,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="relative z-10 p-6 sm:p-7 flex items-center max-w-2xl">
             <div className="space-y-1.5">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/80 text-[#1D4ED8] text-[11px] font-bold border border-blue-200/80">
-                <span>E-Lamis Blora (E Laporan Kemiskinan Blora)</span>
+                <span>OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan)</span>
               </div>
               <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                 {dashboardTitle}

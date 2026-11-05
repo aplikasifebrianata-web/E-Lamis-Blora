@@ -435,7 +435,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-blue-50 text-[#1D4ED8] text-xs font-bold border border-blue-200/60">
             <Users className="w-3.5 h-3.5" />
-            <span>Manajemen User & Kredensial E-Lamis Blora</span>
+            <span>Manajemen User & Kredensial OPTIMIS</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Daftar User per Kategori (Admin, OPD/Dinas/Badan, RSUD, Puskesmas, Kecamatan & Kelurahan)
@@ -636,7 +636,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   </div>
                   <p className="text-[11px] text-slate-500">
                     {kategori === 'Admin'
-                      ? 'Daftar akun Administrator Utama E-Lamis Blora (Role: Admin)'
+                      ? 'Daftar akun Administrator Utama OPTIMIS (Role: Admin)'
                       : `Daftar akun login instansi untuk kategori ${kategori}`}
                   </p>
                 </div>
@@ -1335,7 +1335,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     className="w-4 h-4 rounded text-[#2563EB]"
                   />
                   <span className="text-xs font-semibold text-amber-950">
-                    Sekalian kosongkan/reset seluruh baris data Matriks E-Lamis Blora saat mereset semua akun user
+                    Sekalian kosongkan/reset seluruh baris data Matriks OPTIMIS saat mereset semua akun user
                   </span>
                 </label>
               </div>

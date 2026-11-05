@@ -683,7 +683,7 @@ export class DatabaseService {
         instansi_label: shortLabel,
         instansi_lengkap: cleanNama,
         opd_id: opdId,
-        jabatan: isRoleAdmin ? 'Administrator E-Lamis Blora' : `Operator ${params.kategori}`,
+        jabatan: isRoleAdmin ? 'Administrator OPTIMIS' : `Operator ${params.kategori}`,
       };
       users[existingIdx] = updatedUser;
 
@@ -748,7 +748,7 @@ export class DatabaseService {
         display_name: isRoleAdmin ? `Admin (${cleanUsername})` : cleanNama,
         instansi_label: shortLabel,
         instansi_lengkap: cleanNama,
-        jabatan: isRoleAdmin ? 'Administrator E-Lamis Blora' : `Operator ${params.kategori}`,
+        jabatan: isRoleAdmin ? 'Administrator OPTIMIS' : `Operator ${params.kategori}`,
       };
 
       if (!isRoleAdmin && newOpdId) {
@@ -899,7 +899,7 @@ export class DatabaseService {
         display_name: isAdminKat ? `Administrator (${cleanUsername})` : cleanNama,
         instansi_label: shortLabel,
         instansi_lengkap: cleanNama,
-        jabatan: isAdminKat ? 'Administrator E-Lamis Blora' : `Operator ${acc.kategori}`,
+        jabatan: isAdminKat ? 'Administrator OPTIMIS' : `Operator ${acc.kategori}`,
       });
     });
 
@@ -912,7 +912,7 @@ export class DatabaseService {
         role: 'ADMIN',
         opd_id: null,
         kategori: 'Admin',
-        display_name: 'Administrator E-Lamis Blora',
+        display_name: 'Administrator OPTIMIS',
         instansi_label: 'ADMIN BAPPERIDA',
         instansi_lengkap:
           'BADAN PERENCANAAN PEMBANGUNAN, RISET DAN INOVASI DAERAH KAB. BLORA',

@@ -152,7 +152,7 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-[0_8px_25px_-8px_rgba(15,23,42,0.05)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold text-[#2563EB] mb-1">
-            E-Lamis Blora (E Laporan Kemiskinan Blora) · {activePeriode.nama_periode}
+            OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan) · {activePeriode.nama_periode}
           </p>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             {userRole === 'ADMIN'
@@ -783,7 +783,7 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2 text-xs font-bold text-[#1D4ED8]">
                       <Table2 className="w-4 h-4" />
-                      <span>Langkah 1: Unduh & Gunakan Template Standar Excel E-Lamis Blora</span>
+                      <span>Langkah 1: Unduh & Gunakan Template Standar Excel OPTIMIS</span>
                     </div>
                     <p className="text-xs text-slate-600">
                       Template sudah dilengkapi <strong>Header Baku (7 Kolom Utama)</strong>, <strong>Contoh Pengisian</strong>, serta <strong>Sheet Panduan Format</strong> agar data tidak kocar-kacir.

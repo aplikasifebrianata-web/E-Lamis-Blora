@@ -180,7 +180,7 @@ export default function App() {
     setProfileMenuOpen(false);
     setNotifMenuOpen(false);
     setCurrentUser(null);
-    showToast('success', 'Anda telah keluar dari sistem E-Lamis Blora.');
+    showToast('success', 'Anda telah keluar dari sistem OPTIMIS.');
   };
 
   // Handler Buka Popout Modal Input / Edit Data Matriks
@@ -390,20 +390,20 @@ export default function App() {
   const pageHeadingTitle = (() => {
     if (activeTab === 'dashboard') {
       return userRole === 'ADMIN'
-        ? 'Dashboard — E-Lamis Blora'
-        : `Dashboard ${activeOpd.singkatan} — E-Lamis Blora`;
+        ? 'Dashboard — OPTIMIS'
+        : `Dashboard ${activeOpd.singkatan} — OPTIMIS`;
     }
     if (activeTab === 'matriks') {
       return userRole === 'ADMIN'
-        ? 'Data Matriks — E-Lamis Blora'
+        ? 'Data Matriks — OPTIMIS'
         : `Matriks OPD — ${activeOpd.nama_opd}`;
     }
-    if (activeTab === 'verifikasi') return 'Verifikasi — E-Lamis Blora';
-    if (activeTab === 'laporan-export') return 'Laporan — E-Lamis Blora';
-    if (activeTab === 'pengaturan-periode') return 'Pengaturan Periode — E-Lamis Blora';
-    if (activeTab === 'audit-log') return 'Riwayat & Audit Log — E-Lamis Blora';
-    if (activeTab === 'manajemen-user') return 'Manajemen User — E-Lamis Blora';
-    return 'E-Lamis Blora (E Laporan Kemiskinan Blora)';
+    if (activeTab === 'verifikasi') return 'Verifikasi — OPTIMIS';
+    if (activeTab === 'laporan-export') return 'Laporan — OPTIMIS';
+    if (activeTab === 'pengaturan-periode') return 'Pengaturan Periode — OPTIMIS';
+    if (activeTab === 'audit-log') return 'Riwayat & Audit Log — OPTIMIS';
+    if (activeTab === 'manajemen-user') return 'Manajemen User — OPTIMIS';
+    return 'OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan)';
   })();
 
   const handleToggleSidebar = () => {
@@ -431,21 +431,24 @@ export default function App() {
             sidebarExpanded ? 'p-5 space-y-6 w-64' : 'py-5 px-2.5 space-y-6 w-20 items-center'
           }`}
         >
-          {/* Identitas Logo Pemkab Blora & E-Lamis Blora */}
+          {/* Identitas Logo Pemkab Blora & OPTIMIS */}
           <div
             className={`flex items-center ${
               sidebarExpanded ? 'gap-3' : 'justify-center w-full'
             }`}
-            title="E-Lamis Blora (E Laporan Kemiskinan Blora)"
+            title="OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan)"
           >
             <BloraShieldLogo className="w-11 h-11 shrink-0" />
             {sidebarExpanded && (
               <div className="min-w-0">
                 <p className="text-base font-extrabold tracking-tight text-slate-900 leading-tight truncate">
-                  E-Lamis Blora
+                  OPTIMIS
                 </p>
-                <p className="text-[11px] font-semibold text-[#2563EB] leading-tight truncate">
-                  E Laporan Kemiskinan Blora
+                <p
+                  className="text-[10.5px] font-semibold text-[#2563EB] leading-snug line-clamp-2"
+                  title="Optimalisasi Pelaksanaan Pengentasan Kemiskinan"
+                >
+                  Optimalisasi Pelaksanaan Pengentasan Kemiskinan
                 </p>
               </div>
             )}
@@ -546,7 +549,7 @@ export default function App() {
             </h1>
             <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
               <span className="font-semibold text-[#1D4ED8]">
-                E-Lamis Blora (E Laporan Kemiskinan Blora)
+                OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan)
               </span>
               <span>•</span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#1D4ED8] font-bold border border-blue-200/70">
