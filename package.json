@@ -1,14 +1,14 @@
 {
-  "name": "e-lamis-blora",
+  "name": "optimis-blora",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "engines": {
-    "node": ">=20.19.0"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build --outDir dist",
+    "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
