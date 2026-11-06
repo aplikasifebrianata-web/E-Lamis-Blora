@@ -237,9 +237,18 @@ export default function App() {
       besaran_manfaat: string;
       jenis_bantuan: string;
       durasi_pemberian_bantuan: string;
+      keterangan_durasi_bantuan?: string;
     };
-    sem1Input?: { realisasi: number; action: 'draft' | 'submit' };
-    sem2Input?: { realisasi: number; action: 'draft' | 'submit' };
+    sem1Input?: {
+      realisasi: number;
+      rincian_realisasi?: string;
+      action: 'draft' | 'submit';
+    };
+    sem2Input?: {
+      realisasi: number;
+      rincian_realisasi?: string;
+      action: 'draft' | 'submit';
+    };
   }) => {
     const actorName = currentUser?.display_name || `Operator ${activeOpd.singkatan}`;
     const res = DatabaseService.saveOpdMatrixAndRealisasi({
@@ -418,22 +427,21 @@ export default function App() {
   ];
 
   const pageHeadingTitle = (() => {
-    if (activeTab === 'dashboard') {
-      return userRole === 'ADMIN'
-        ? 'Dashboard — OPTIMIS'
-        : `Dashboard ${activeOpd.singkatan} — OPTIMIS`;
+    const menuLabel = (() => {
+      if (activeTab === 'dashboard') return 'Dashboard';
+      if (activeTab === 'matriks') return 'Data Matriks';
+      if (activeTab === 'verifikasi') return 'Verifikasi';
+      if (activeTab === 'laporan-export') return 'Laporan';
+      if (activeTab === 'pengaturan-periode') return 'Pengaturan Periode';
+      if (activeTab === 'audit-log') return 'Riwayat & Audit Log';
+      if (activeTab === 'manajemen-user') return 'Manajemen User';
+      return 'Dashboard';
+    })();
+
+    if (userRole === 'OPD') {
+      return `${menuLabel} — ${activeOpd.nama_opd}`;
     }
-    if (activeTab === 'matriks') {
-      return userRole === 'ADMIN'
-        ? 'Data Matriks — OPTIMIS'
-        : `Matriks OPD — ${activeOpd.nama_opd}`;
-    }
-    if (activeTab === 'verifikasi') return 'Verifikasi — OPTIMIS';
-    if (activeTab === 'laporan-export') return 'Laporan — OPTIMIS';
-    if (activeTab === 'pengaturan-periode') return 'Pengaturan Periode — OPTIMIS';
-    if (activeTab === 'audit-log') return 'Riwayat & Audit Log — OPTIMIS';
-    if (activeTab === 'manajemen-user') return 'Manajemen User — OPTIMIS';
-    return 'OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan)';
+    return menuLabel;
   })();
 
   const handleToggleSidebar = () => {
@@ -571,7 +579,7 @@ export default function App() {
       {/* MAIN CONTENT VIEWPORT (Fleksibel & Dinamis Mengikuti Ukuran Layar) */}
       <div className="flex-1 min-w-0 w-full flex flex-col">
         {/* Top Context Header */}
-        <header className="w-full px-3.5 sm:px-6 lg:px-8 pt-3.5 sm:pt-5 pb-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 sm:gap-4">
+        <header className="w-full px-3.5 sm:px-6 lg:px-8 pt-3.5 sm:pt-5 pb-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
           {/* Baris Identitas Khusus Layar HP (< md): Logo Blora + OPTIMIS di Kiri, Status + Notifikasi + Profil di Kanan */}
           <div className="flex md:hidden items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -628,20 +636,18 @@ export default function App() {
             </div>
           </div>
 
-          {/* Kiri Atas: Judul Laman & Status Aplikasi OPTIMIS */}
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-slate-900 leading-snug">
+          {/* Kiri Atas: Judul Menu & Dinas */}
+          <div className="min-w-0 flex-1">
+            <h1
+              className="text-base sm:text-lg lg:text-xl font-extrabold tracking-tight text-slate-900 leading-snug"
+              title={pageHeadingTitle}
+            >
               {pageHeadingTitle}
             </h1>
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs font-medium text-slate-600 mt-1">
-              <span className="font-semibold text-[#1D4ED8] hidden sm:inline">
-                OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan)
-              </span>
-              <span className="hidden sm:inline">•</span>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs font-medium text-slate-600 mt-1.5">
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-blue-50 text-[#1D4ED8] font-bold border border-blue-200/70">
                 TA {activePeriode.tahun}
               </span>
-              <span>•</span>
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200/70">
                 Semester {activeSemesterNum} ({activeSemesterNum === 1 ? 'Jan–Jun' : 'Jul–Des'}) — Dibuka
               </span>
@@ -649,7 +655,7 @@ export default function App() {
           </div>
 
           {/* Kanan Atas: Pilihan Tahun/Semester + Lonceng Notifikasi + Akun Pengguna */}
-          <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 sm:gap-2.5 shrink-0 w-full xl:w-auto self-end xl:self-center relative">
+          <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 sm:gap-2.5 shrink-0 w-full lg:w-auto self-end lg:self-center relative">
             {/* Pilihan Tahun (2026 & 2027) dan Semester (Semester 1 & Semester 2) — di HP dibuat proporsional penuh agar mudah dibaca & disentuh */}
             <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
               <div className="flex items-center justify-between sm:justify-start gap-1.5 bg-white border border-slate-200/90 rounded-2xl px-3.5 py-2.5 sm:px-3 sm:py-2 shadow-xs">
@@ -775,18 +781,19 @@ export default function App() {
                   setProfileMenuOpen(!profileMenuOpen);
                   setNotifMenuOpen(false);
                 }}
-                className="hidden md:flex pl-2 pr-3.5 py-1.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs items-center gap-2.5 hover:bg-slate-50 transition-colors cursor-pointer"
+                title={`${currentUser.display_name} (${currentUser.instansi_label})`}
+                className="hidden md:flex pl-2 pr-3 py-1.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs items-center gap-2.5 hover:bg-slate-50 transition-colors cursor-pointer max-w-[220px] xl:max-w-[250px] 2xl:max-w-[300px]"
               >
-                <DefaultProfileAvatar className="w-9 h-9" />
-                <div className="text-left hidden sm:block">
-                  <p className="text-xs font-bold text-slate-900 leading-tight">
+                <DefaultProfileAvatar className="w-9 h-9 shrink-0" />
+                <div className="text-left hidden sm:block min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-900 leading-tight truncate">
                     {currentUser.display_name}
                   </p>
-                  <p className="text-[11px] text-slate-500 leading-tight">
+                  <p className="text-[11px] text-slate-500 leading-tight truncate">
                     {currentUser.instansi_label}
                   </p>
                 </div>
-                <ChevronDown className="w-4 h-4 text-slate-400" />
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
               </button>
 
               <AnimatePresence>

@@ -13,6 +13,7 @@ import {
   db,
   auth,
   syncFirebaseEmailAuth,
+  provisionFirebaseEmailAccount,
   OperationType,
   handleFirestoreError,
   User,
@@ -272,6 +273,7 @@ function serializeMatrixForFirestore(m: MatrixData): Record<string, unknown> {
     besaran_manfaat: String(m.besaran_manfaat || '-').slice(0, 300),
     jenis_bantuan: String(m.jenis_bantuan || 'Bantuan sosial').slice(0, 120),
     durasi_pemberian_bantuan: String(m.durasi_pemberian_bantuan || '1 tahun').slice(0, 120),
+    keterangan_durasi_bantuan: String(m.keterangan_durasi_bantuan || '').slice(0, 500),
   };
 }
 
@@ -281,6 +283,7 @@ function serializeRealisasiForFirestore(r: RealisasiSemester): Record<string, un
     matrix_id: r.matrix_id,
     semester: r.semester,
     realisasi: Math.max(0, Number(r.realisasi) || 0),
+    rincian_realisasi: String(r.rincian_realisasi || '').slice(0, 1500),
     status_verifikasi: r.status_verifikasi,
     catatan_verifikator: String(r.catatan_verifikator || '').slice(0, 1000),
     submitted_at: r.submitted_at ? String(r.submitted_at).slice(0, 64) : null,
@@ -568,6 +571,9 @@ export class DatabaseService {
                   durasi_pemberian_bantuan: String(
                     data.durasi_pemberian_bantuan || '1 tahun'
                   ),
+                  keterangan_durasi_bantuan: String(
+                    data.keterangan_durasi_bantuan || ''
+                  ),
                   created_at: nowIso,
                   updated_at: nowIso,
                 };
@@ -597,6 +603,7 @@ export class DatabaseService {
                   matrix_id: String(data.matrix_id || ''),
                   semester: (Number(data.semester) === 2 ? 2 : 1) as SemesterNumber,
                   realisasi: Number(data.realisasi) || 0,
+                  rincian_realisasi: String(data.rincian_realisasi || ''),
                   status_verifikasi:
                     (data.status_verifikasi as VerificationStatus) || 'Belum Diisi',
                   catatan_verifikator: String(data.catatan_verifikator || ''),
@@ -882,6 +889,7 @@ export class DatabaseService {
 
       saveTable(STORAGE_KEYS.USERS, users);
       void upsertFirestoreDocument('user_accounts', updatedUser.user_id, serializeUserForFirestore(updatedUser));
+      void provisionFirebaseEmailAccount(cleanEmail, cleanPassword);
 
       this.addAuditLog({
         matrix_id: 'USER-MANAGEMENT',
@@ -895,7 +903,7 @@ export class DatabaseService {
 
       return {
         success: true,
-        message: `Akun user "${cleanUsername}" (${cleanEmail}) berhasil diperbarui.`,
+        message: `Akun user "${cleanUsername}" (${cleanEmail}) berhasil diperbarui dan disinkronkan ke Firebase Authentication.`,
         user: updatedUser,
       };
     } else {
@@ -935,6 +943,7 @@ export class DatabaseService {
       users.push(newUser);
       saveTable(STORAGE_KEYS.USERS, users);
       void upsertFirestoreDocument('user_accounts', newUser.user_id, serializeUserForFirestore(newUser));
+      void provisionFirebaseEmailAccount(cleanEmail, cleanPassword);
 
       this.addAuditLog({
         matrix_id: 'USER-MANAGEMENT',
@@ -948,7 +957,7 @@ export class DatabaseService {
 
       return {
         success: true,
-        message: `Akun user baru "${cleanUsername}" (${cleanEmail}) berhasil ditambahkan.`,
+        message: `Akun user baru "${cleanUsername}" (${cleanEmail}) berhasil ditambahkan dan didaftarkan ke Firebase Authentication.`,
         user: newUser,
       };
     }
@@ -1110,6 +1119,7 @@ export class DatabaseService {
     }
 
     void this.syncAllLocalToFirestore({ pruneRemoved: true });
+    void this.syncAllUsersToFirebaseAuth();
 
     this.addAuditLog({
       matrix_id: 'USER-RESET-ALL',
@@ -1127,9 +1137,68 @@ export class DatabaseService {
       success: true,
       message:
         newUsers.length > 1
-          ? `Berhasil mereset semua akun dan menyimpan ${newUsers.length} akun user (termasuk Admin).`
+          ? `Berhasil mereset semua akun, menyimpan ${newUsers.length} akun user, dan menyinkronkannya ke Firebase Authentication.`
           : 'Semua akun instansi berhasil direset. Akun Admin (admin@oppkpke.com) tetap aktif.',
       count: newUsers.length,
+    };
+  }
+
+  /**
+   * Sinkronkan seluruh akun user di Manajemen User ke Firebase Authentication (Users) dan Cloud Firestore
+   */
+  static async syncAllUsersToFirebaseAuth(
+    onProgress?: (current: number, total: number, email: string) => void
+  ): Promise<{
+    total: number;
+    created: number;
+    alreadyExists: number;
+    failed: number;
+  }> {
+    const users = this.getUsersList();
+    const opds = this.getOpdList();
+
+    // Pastikan seluruh dokumen user_accounts & opds juga tersinkron ke Firestore
+    await Promise.allSettled([
+      ...opds.map((o) =>
+        upsertFirestoreDocument('opds', o.opd_id, serializeOpdForFirestore(o))
+      ),
+      ...users.map((u) =>
+        upsertFirestoreDocument(
+          'user_accounts',
+          u.user_id,
+          serializeUserForFirestore(u)
+        )
+      ),
+    ]);
+
+    let created = 0;
+    let alreadyExists = 0;
+    let failed = 0;
+
+    for (let i = 0; i < users.length; i++) {
+      const u = users[i];
+      const email = formatOpdEmail(u.email || u.username);
+      const pass = u.password_hint || (u.role === 'ADMIN' ? 'admin' : 'lamis123');
+      onProgress?.(i + 1, users.length, email);
+
+      const res = await provisionFirebaseEmailAccount(email, pass);
+      if (res.status === 'created') {
+        created++;
+      } else if (res.status === 'exists') {
+        alreadyExists++;
+      } else {
+        failed++;
+      }
+
+      // Jeda singkat agar tidak terkena pembatasan rate-limit pendaftaran Firebase Auth
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+
+    return {
+      total: users.length,
+      created,
+      alreadyExists,
+      failed,
     };
   }
 
@@ -1241,7 +1310,9 @@ export class DatabaseService {
       if (m.alokasi_anggaran > 0) filledScore += 1;
       if (m.sumber_pembiayaan.trim()) filledScore += 1;
       if (m.sifat_bantuan) filledScore += 1;
-      if (m.jumlah_sasaran > 0) filledScore += 1;
+      if (m.jumlah_sasaran > 0 || (m.keterangan_sasaran && m.keterangan_sasaran.trim())) {
+        filledScore += 1;
+      }
       if (m.besaran_manfaat.trim() && m.jenis_bantuan.trim()) filledScore += 1;
       if (sem1.realisasi > 0 || sem2.realisasi > 0 || sem1.status_verifikasi === 'Terverifikasi') filledScore += 1;
 
@@ -1256,7 +1327,7 @@ export class DatabaseService {
           m.alokasi_anggaran > 0 &&
           m.sumber_pembiayaan.trim() &&
           m.sifat_bantuan &&
-          m.jumlah_sasaran >= 0 &&
+          (m.jumlah_sasaran > 0 || (m.keterangan_sasaran && m.keterangan_sasaran.trim())) &&
           m.besaran_manfaat.trim() &&
           m.jenis_bantuan.trim() &&
           m.durasi_pemberian_bantuan.trim()
@@ -1285,6 +1356,7 @@ export class DatabaseService {
       matrix_id,
       semester,
       realisasi: 0,
+      rincian_realisasi: '',
       status_verifikasi: 'Belum Diisi',
       catatan_verifikator: '',
       submitted_at: null,
@@ -1322,14 +1394,17 @@ export class DatabaseService {
         | 'besaran_manfaat'
         | 'jenis_bantuan'
         | 'durasi_pemberian_bantuan'
+        | 'keterangan_durasi_bantuan'
       >
     >;
     sem1Input?: {
       realisasi: number;
+      rincian_realisasi?: string;
       action: 'draft' | 'submit';
     };
     sem2Input?: {
       realisasi: number;
+      rincian_realisasi?: string;
       action: 'draft' | 'submit';
     };
     userRole: UserRole;
@@ -1413,6 +1488,8 @@ export class DatabaseService {
         jenis_bantuan: params.opdUpdates.jenis_bantuan || 'Bantuan sosial',
         durasi_pemberian_bantuan:
           params.opdUpdates.durasi_pemberian_bantuan || '1 tahun',
+        keterangan_durasi_bantuan:
+          params.opdUpdates.keterangan_durasi_bantuan || '',
         created_at: now,
         updated_at: now,
       };
@@ -1433,6 +1510,10 @@ export class DatabaseService {
           params.opdUpdates.satuan_sasaran ?? existingMatrix.satuan_sasaran ?? 'KPM',
         keterangan_sasaran:
           params.opdUpdates.keterangan_sasaran ?? existingMatrix.keterangan_sasaran ?? '',
+        keterangan_durasi_bantuan:
+          params.opdUpdates.keterangan_durasi_bantuan ??
+          existingMatrix.keterangan_durasi_bantuan ??
+          '',
         alokasi_anggaran: Math.max(
           0,
           Number(params.opdUpdates.alokasi_anggaran ?? existingMatrix.alokasi_anggaran) || 0
@@ -1482,6 +1563,7 @@ export class DatabaseService {
             params.sem1Input.action === 'submit'
               ? 'Menunggu Verifikasi'
               : params.sem1Input.realisasi > 0 ||
+                Boolean(params.sem1Input.rincian_realisasi?.trim()) ||
                 currentS1.status_verifikasi === 'Perlu Perbaikan'
               ? 'Draft'
               : 'Belum Diisi';
@@ -1489,6 +1571,8 @@ export class DatabaseService {
           const updatedS1: RealisasiSemester = {
             ...currentS1,
             realisasi: Math.max(0, Number(params.sem1Input.realisasi) || 0),
+            rincian_realisasi:
+              params.sem1Input.rincian_realisasi ?? currentS1.rincian_realisasi ?? '',
             status_verifikasi: newStatus,
             submitted_at:
               params.sem1Input.action === 'submit' ? now : currentS1.submitted_at,
@@ -1547,6 +1631,7 @@ export class DatabaseService {
             params.sem2Input.action === 'submit'
               ? 'Menunggu Verifikasi'
               : params.sem2Input.realisasi > 0 ||
+                Boolean(params.sem2Input.rincian_realisasi?.trim()) ||
                 currentS2.status_verifikasi === 'Perlu Perbaikan'
               ? 'Draft'
               : 'Belum Diisi';
@@ -1554,6 +1639,8 @@ export class DatabaseService {
           const updatedS2: RealisasiSemester = {
             ...currentS2,
             realisasi: Math.max(0, Number(params.sem2Input.realisasi) || 0),
+            rincian_realisasi:
+              params.sem2Input.rincian_realisasi ?? currentS2.rincian_realisasi ?? '',
             status_verifikasi: newStatus,
             submitted_at:
               params.sem2Input.action === 'submit' ? now : currentS2.submitted_at,

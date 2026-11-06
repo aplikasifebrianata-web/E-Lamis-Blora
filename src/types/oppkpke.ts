@@ -82,6 +82,7 @@ export interface MatrixData {
   besaran_manfaat: string;
   jenis_bantuan: string;
   durasi_pemberian_bantuan: string;
+  keterangan_durasi_bantuan?: string;
   created_at: string;
   updated_at: string;
 }
@@ -97,6 +98,7 @@ export interface RealisasiSemester {
   matrix_id: string;
   semester: SemesterNumber;
   realisasi: number;
+  rincian_realisasi?: string;
   status_verifikasi: VerificationStatus;
   catatan_verifikator: string;
   submitted_at: string | null;

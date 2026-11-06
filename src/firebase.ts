@@ -8,6 +8,8 @@ import {
   signInAnonymously,
   signOut,
   onAuthStateChanged,
+  setPersistence,
+  inMemoryPersistence,
   User,
 } from 'firebase/auth';
 import {
@@ -34,6 +36,14 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
+// Secondary Firebase App instance khusus untuk mendaftarkan/menyinkronkan akun OPD ke Firebase Authentication
+// tanpa mengubah atau memutus sesi login Admin pada instance auth utama.
+const provisionerApp = initializeApp(firebaseConfig, 'OptimisUserProvisioner');
+const provisionerAuth = getAuth(provisionerApp);
+void setPersistence(provisionerAuth, inMemoryPersistence).catch(() => {
+  // ignore persistence error
+});
+
 export {
   signInWithPopup,
   signInWithEmailAndPassword,
@@ -51,6 +61,70 @@ export function normalizeFirebaseAuthPassword(rawPassword: string): string {
   const clean = rawPassword.trim();
   if (clean.length >= 6) return clean;
   return `${clean}123456`.slice(0, 6);
+}
+
+/**
+ * Daftarkan atau sinkronkan akun [namaopd]@oppkpke.com ke Firebase Authentication menggunakan Secondary Auth Provisioner
+ * sehingga akun langsung muncul di Firebase Console > Authentication > Users tanpa memutus sesi Admin.
+ */
+export async function provisionFirebaseEmailAccount(
+  email: string,
+  rawPassword: string
+): Promise<{
+  status: 'created' | 'exists' | 'failed';
+  email: string;
+  error?: string;
+}> {
+  const cleanEmail = email.trim().toLowerCase();
+  const fbPassword = normalizeFirebaseAuthPassword(rawPassword);
+  try {
+    await createUserWithEmailAndPassword(
+      provisionerAuth,
+      cleanEmail,
+      fbPassword
+    );
+    await signOut(provisionerAuth).catch(() => {});
+    return { status: 'created', email: cleanEmail };
+  } catch (err: unknown) {
+    const code =
+      typeof err === 'object' && err !== null && 'code' in err
+        ? String((err as { code?: unknown }).code)
+        : '';
+    const msg = err instanceof Error ? err.message : String(err);
+
+    if (
+      code === 'auth/email-already-in-use' ||
+      msg.includes('email-already-in-use')
+    ) {
+      return { status: 'exists', email: cleanEmail };
+    }
+
+    // Jika terkena rate limit sementara dari Firebase Auth, tunggu sejenak lalu coba sekali lagi
+    if (
+      code === 'auth/too-many-requests' ||
+      msg.includes('too-many-requests')
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      try {
+        await createUserWithEmailAndPassword(
+          provisionerAuth,
+          cleanEmail,
+          fbPassword
+        );
+        await signOut(provisionerAuth).catch(() => {});
+        return { status: 'created', email: cleanEmail };
+      } catch (retryErr: unknown) {
+        const retryMsg =
+          retryErr instanceof Error ? retryErr.message : String(retryErr);
+        if (retryMsg.includes('email-already-in-use')) {
+          return { status: 'exists', email: cleanEmail };
+        }
+        return { status: 'failed', email: cleanEmail, error: retryMsg };
+      }
+    }
+
+    return { status: 'failed', email: cleanEmail, error: msg };
+  }
 }
 
 /**

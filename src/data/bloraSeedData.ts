@@ -45,6 +45,7 @@ export const STRATEGI_OPPKPKE_LIST = [
 
 export const SUMBER_PEMBIAYAAN_OPTIONS = [
   'APBD Kabupaten',
+  'APBDP',
   'APBD Provinsi',
   'APBN',
   'Dana Desa',
@@ -69,6 +70,7 @@ export const JENIS_BANTUAN_OPTIONS = [
 
 export const DURASI_BANTUAN_OPTIONS = [
   '1 kali',
+  '1 kegiatan',
   '3 bulan',
   '6 bulan',
   '1 tahun',

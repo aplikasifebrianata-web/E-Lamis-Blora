@@ -149,17 +149,17 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
       className="space-y-6"
     >
       {/* Banner Header & Tombol Aksi */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-[0_8px_25px_-8px_rgba(15,23,42,0.05)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-[0_8px_25px_-8px_rgba(15,23,42,0.05)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-[#2563EB] mb-1">
-            OPTIMIS (Optimalisasi Pelaksanaan Pengentasan Kemiskinan) · {activePeriode.nama_periode}
+            {activePeriode.nama_periode}
           </p>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+          <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900 leading-snug">
             {userRole === 'ADMIN'
               ? 'Data Matriks Seluruh Perangkat Daerah (OPD)'
               : `Matriks OPD — ${activeOpd.nama_opd}`}
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          </h2>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
             {userRole === 'ADMIN' ? (
               <>
                 Rekapitulasi matriks program, kegiatan, dan sub kegiatan seluruh Perangkat Daerah. Gunakan fitur <strong>Import Excel</strong> sesuai template standar atau <strong>Ekspor (.xlsx)</strong>.
@@ -172,7 +172,7 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start lg:self-center">
           {/* Tombol Input Data Matriks hanya ditampilkan untuk OPD (dihapus pada laman Admin) */}
           {userRole === 'OPD' && (
             <button
@@ -219,16 +219,16 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
 
       {/* Filter Bar & Pencarian */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-[0_8px_25px_-8px_rgba(15,23,42,0.04)]">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 items-center">
           {/* Pencarian */}
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari kode rekening, subkegiatan, lokasi..."
-              className="w-full pl-9 pr-3 py-2 text-xs text-slate-900 bg-[#F8FAFF] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:bg-white"
+              className="w-full h-10 pl-9 pr-3 text-xs text-slate-900 bg-[#F8FAFF] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:bg-white"
             />
           </div>
 
@@ -237,7 +237,7 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
             <select
               value={selectedOpdFilter}
               onChange={(e) => setSelectedOpdFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs font-medium text-slate-700 bg-[#F8FAFF] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+              className="w-full h-10 px-3 text-xs font-medium text-slate-700 bg-[#F8FAFF] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
             >
               <option value="ALL">Semua Perangkat Daerah ({allOpds.length} OPD)</option>
               {allOpds.map((o) => (
@@ -247,8 +247,12 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
               ))}
             </select>
           ) : (
-            <div className="px-3.5 py-2 text-xs font-medium text-slate-700 bg-blue-50/50 border border-blue-200/60 rounded-xl truncate">
-              Instansi: <strong className="text-[#1D4ED8]">{activeOpd.singkatan}</strong>
+            <div
+              className="w-full h-10 px-3.5 text-xs font-medium text-slate-700 bg-blue-50/50 border border-blue-200/60 rounded-xl flex items-center gap-1.5 truncate"
+              title={activeOpd.nama_opd}
+            >
+              <span className="text-slate-500 shrink-0">Instansi:</span>
+              <strong className="text-[#1D4ED8] truncate">{activeOpd.singkatan}</strong>
             </div>
           )}
 
@@ -256,7 +260,7 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
           <select
             value={selectedStrategi}
             onChange={(e) => setSelectedStrategi(e.target.value)}
-            className="w-full px-3 py-2 text-xs font-medium text-slate-700 bg-[#F8FAFF] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+            className="w-full h-10 px-3 text-xs font-medium text-slate-700 bg-[#F8FAFF] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
           >
             <option value="ALL">Semua Strategi OPPKPKE (3 Strategi)</option>
             {STRATEGI_OPPKPKE_LIST.map((st) => (
@@ -270,7 +274,7 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
           <select
             value={selectedSemStatus}
             onChange={(e) => setSelectedSemStatus(e.target.value)}
-            className="w-full px-3 py-2 text-xs font-medium text-slate-700 bg-[#F8FAFF] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+            className="w-full h-10 px-3 text-xs font-medium text-slate-700 bg-[#F8FAFF] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
           >
             <option value="ALL">Semua Status Verifikasi Semester {selectedSemester}</option>
             <option value="Terverifikasi">Terverifikasi (Terkunci)</option>
@@ -288,11 +292,15 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
           <div className="text-xs font-semibold text-slate-700">
             Menampilkan <span className="font-mono-tabular text-[#2563EB]">{filteredRows.length}</span> Sub Kegiatan ·{' '}
             <span className="text-[#1D4ED8]">
-              TA {activePeriode.tahun} — Semester {selectedSemester} ({selectedSemester === 1 ? 'Januari–Juni' : 'Juli–Desember'})
+              {selectedSemester === 1
+                ? `TA ${activePeriode.tahun} — Semester 1 (Januari–Juni)`
+                : `TA ${activePeriode.tahun} — Semester 1 & Semester 2`}
             </span>
           </div>
           <div className="text-[11px] text-slate-500">
-            Menampilkan data realisasi sesuai Tahun & Semester yang dipilih di awal
+            {selectedSemester === 1
+              ? 'Menampilkan Realisasi Semester 1 beserta Rincian Realisasi'
+              : 'Menampilkan Realisasi Semester 1 dan Realisasi Semester 2 beserta Rincian Realisasi'}
           </div>
         </div>
 
@@ -300,22 +308,31 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200/80 bg-[#F8FAFF] text-[11px] font-semibold text-slate-600">
-                <th className="py-3.5 px-4 w-10 text-center">No</th>
-                <th className="py-3.5 px-4 min-w-[200px]">OPD & Strategi OPPKPKE</th>
-                <th className="py-3.5 px-4 min-w-[270px]">Kode Rekening, Program & Sub Kegiatan</th>
-                <th className="py-3.5 px-4 min-w-[220px]">Karakteristik & Sasaran Bantuan</th>
-                <th className="py-3.5 px-4 text-right min-w-[150px]">Alokasi Anggaran</th>
-                <th className="py-3.5 px-4 text-right min-w-[200px]">
-                  Realisasi Semester {selectedSemester} ({selectedSemester === 1 ? 'Jan–Jun' : 'Jul–Des'})
+                <th className="py-3.5 px-3 w-10 text-center">No</th>
+                <th className="py-3.5 px-3.5 min-w-[140px]">OPD & Strategi OPPKPKE</th>
+                <th className="py-3.5 px-3.5 min-w-[200px]">Kode Rekening, Program & Sub Kegiatan</th>
+                <th className="py-3.5 px-3.5 min-w-[185px]">Karakteristik, Lokasi & Sasaran</th>
+                <th className="py-3.5 px-3.5 text-right min-w-[130px]">Alokasi Anggaran</th>
+                <th className="py-3.5 px-3.5 text-right min-w-[150px]">
+                  Realisasi Semester 1 (Jan–Jun)
                 </th>
-                <th className="py-3.5 px-4 text-center min-w-[140px]">Kelengkapan</th>
-                <th className="py-3.5 px-4 text-center min-w-[125px]">Aksi</th>
+                {selectedSemester === 2 && (
+                  <th className="py-3.5 px-3.5 text-right min-w-[150px]">
+                    Realisasi Semester 2 (Jul–Des)
+                  </th>
+                )}
+                <th className="py-3.5 px-3.5 min-w-[165px]">Rincian Realisasi</th>
+                <th className="py-3.5 px-3.5 text-center min-w-[115px]">Kelengkapan</th>
+                <th className="py-3.5 px-3.5 text-center min-w-[100px]">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                  <td
+                    colSpan={selectedSemester === 2 ? 10 : 9}
+                    className="py-12 text-center text-slate-500"
+                  >
                     {userRole === 'ADMIN' ? (
                       <>Tidak ada baris matriks yang sesuai filter pencarian.</>
                     ) : (
@@ -328,26 +345,28 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
               ) : (
                 filteredRows.map((row, index) => {
                   const activeSem = selectedSemester === 1 ? row.sem1 : row.sem2;
-                  const activePct =
-                    selectedSemester === 1
-                      ? row.persentase_realisasi_sem1
-                      : row.persentase_realisasi_sem2;
                   const isVerifiedLocked = activeSem.status_verifikasi === 'Terverifikasi';
                   const isAnySemVerified =
                     row.sem1.status_verifikasi === 'Terverifikasi' ||
                     row.sem2.status_verifikasi === 'Terverifikasi';
+
+                  const sasaranDisplay =
+                    row.keterangan_sasaran?.trim() ||
+                    (row.jumlah_sasaran > 0
+                      ? `${formatNumber(row.jumlah_sasaran)} ${row.satuan_sasaran || 'KPM'}`
+                      : '-');
 
                   return (
                     <tr
                       key={row.matrix_id}
                       className="hover:bg-blue-50/30 transition-colors align-top"
                     >
-                      <td className="py-4 px-4 text-center font-mono-tabular text-slate-400">
+                      <td className="py-4 px-3 text-center font-mono-tabular text-slate-400">
                         {index + 1}
                       </td>
 
                       {/* Kolom OPD & Strategi */}
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-3.5">
                         <p className="font-bold text-slate-900">{row.singkatan_opd}</p>
                         <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
                           {row.nama_opd}
@@ -358,7 +377,7 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
                       </td>
 
                       {/* Kolom Kode, Program, Kegiatan, Sub Kegiatan */}
-                      <td className="py-4 px-4 space-y-1">
+                      <td className="py-4 px-3.5 space-y-1">
                         <div className="font-mono-tabular text-[11px] font-semibold text-[#2563EB]">
                           {row.kode}
                         </div>
@@ -373,33 +392,30 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
                         </p>
                       </td>
 
-                      {/* Kolom Karakteristik & Sasaran */}
-                      <td className="py-4 px-4 space-y-1 text-[11px] text-slate-600">
+                      {/* Kolom Karakteristik, Lokasi & Sasaran */}
+                      <td className="py-4 px-3.5 space-y-1 text-[11px] text-slate-600">
                         <p className="text-slate-900 font-semibold line-clamp-1">
                           {row.jenis_bantuan || '-'} · {row.sifat_bantuan || '-'}
                         </p>
-                        <p className="line-clamp-1">
-                          Sasaran:{' '}
-                          <strong className="font-mono-tabular text-slate-800">
-                            {formatNumber(row.jumlah_sasaran)} {row.satuan_sasaran || 'KPM'}
-                          </strong>{' '}
-                          ({row.besaran_manfaat || '-'})
+                        <p className="line-clamp-1 text-slate-600" title={row.lokasi}>
+                          Lokasi:{' '}
+                          <strong className="text-slate-800">{row.lokasi || '-'}</strong>
                         </p>
-                        {row.keterangan_sasaran && (
-                          <p
-                            className="line-clamp-1 text-slate-500 italic"
-                            title={row.keterangan_sasaran}
-                          >
-                            Ket: {row.keterangan_sasaran}
-                          </p>
-                        )}
-                        <p className="text-slate-400">
-                          Sumber: {row.sumber_pembiayaan || '-'}
+                        <p className="line-clamp-2" title={sasaranDisplay}>
+                          Sasaran:{' '}
+                          <strong className="text-slate-800">{sasaranDisplay}</strong>
+                          {row.besaran_manfaat ? ` (${row.besaran_manfaat})` : ''}
+                        </p>
+                        <p className="text-slate-500 line-clamp-1">
+                          Durasi: {row.durasi_pemberian_bantuan || '-'}
+                          {row.keterangan_durasi_bantuan
+                            ? ` — ${row.keterangan_durasi_bantuan}`
+                            : ''}
                         </p>
                       </td>
 
                       {/* Kolom Alokasi Anggaran */}
-                      <td className="py-4 px-4 text-right font-mono-tabular">
+                      <td className="py-4 px-3.5 text-right font-mono-tabular">
                         <div className="font-bold text-slate-900">
                           {formatRupiah(row.alokasi_anggaran)}
                         </div>
@@ -408,29 +424,86 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Kolom Realisasi Sesuai Semester yang Dipilih di Awal */}
-                      <td className="py-4 px-4 text-right">
+                      {/* Kolom Realisasi Semester 1 (Selalu tampil di Semester 1 maupun Semester 2) */}
+                      <td className="py-4 px-3.5 text-right">
                         <div className="font-mono-tabular font-bold text-slate-900">
-                          {formatRupiah(activeSem.realisasi)}
+                          {formatRupiah(row.sem1.realisasi)}
                         </div>
                         <div className="text-[11px] font-mono-tabular text-slate-500 mt-0.5">
-                          {activePct.toFixed(1)}% dari Pagu (Sem {selectedSemester})
+                          {row.persentase_realisasi_sem1.toFixed(1)}% dari Pagu (S1)
                         </div>
                         <div className="mt-1.5 flex justify-end">
-                          <StatusIndicator status={activeSem.status_verifikasi} />
+                          <StatusIndicator status={row.sem1.status_verifikasi} />
                         </div>
-                        {activeSem.catatan_verifikator && (
+                        {row.sem1.catatan_verifikator && (
                           <p
                             className="text-[10px] text-slate-500 italic mt-1 line-clamp-1"
-                            title={activeSem.catatan_verifikator}
+                            title={row.sem1.catatan_verifikator}
                           >
-                            Ket: {activeSem.catatan_verifikator}
+                            Ket: {row.sem1.catatan_verifikator}
                           </p>
                         )}
                       </td>
 
+                      {/* Kolom Realisasi Semester 2 (Tampil jika pilihan awal Semester 2) */}
+                      {selectedSemester === 2 && (
+                        <td className="py-4 px-3.5 text-right">
+                          <div className="font-mono-tabular font-bold text-slate-900">
+                            {formatRupiah(row.sem2.realisasi)}
+                          </div>
+                          <div className="text-[11px] font-mono-tabular text-indigo-600 mt-0.5">
+                            {row.persentase_realisasi_sem2.toFixed(1)}% dari Pagu (S2)
+                          </div>
+                          <div className="mt-1.5 flex justify-end">
+                            <StatusIndicator status={row.sem2.status_verifikasi} />
+                          </div>
+                          {row.sem2.catatan_verifikator && (
+                            <p
+                              className="text-[10px] text-slate-500 italic mt-1 line-clamp-1"
+                              title={row.sem2.catatan_verifikator}
+                            >
+                              Ket: {row.sem2.catatan_verifikator}
+                            </p>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Kolom Rincian Realisasi */}
+                      <td className="py-4 px-3.5 text-[11px] text-slate-600 space-y-1.5">
+                        <div>
+                          {selectedSemester === 2 && (
+                            <span className="font-semibold text-[#2563EB] block text-[10px]">
+                              Semester 1:
+                            </span>
+                          )}
+                          <p
+                            className="line-clamp-2 text-slate-700 leading-relaxed"
+                            title={row.sem1.rincian_realisasi || '-'}
+                          >
+                            {row.sem1.rincian_realisasi?.trim() || (
+                              <span className="text-slate-400 italic">Belum ada rincian</span>
+                            )}
+                          </p>
+                        </div>
+                        {selectedSemester === 2 && (
+                          <div className="pt-1 border-t border-slate-100">
+                            <span className="font-semibold text-indigo-600 block text-[10px]">
+                              Semester 2:
+                            </span>
+                            <p
+                              className="line-clamp-2 text-slate-700 leading-relaxed"
+                              title={row.sem2.rincian_realisasi || '-'}
+                            >
+                              {row.sem2.rincian_realisasi?.trim() || (
+                                <span className="text-slate-400 italic">Belum ada rincian</span>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </td>
+
                       {/* Kolom Kelengkapan Matriks (Progress Bar) */}
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-4 px-3.5 text-center">
                         <div className="flex flex-col items-center gap-1.5 min-w-[110px]">
                           <div className="flex items-center justify-between w-full text-[11px]">
                             <span className="font-semibold font-mono-tabular text-slate-800">
@@ -468,7 +541,7 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
                       </td>
 
                       {/* Kolom Aksi */}
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-4 px-3.5 text-center">
                         {userRole === 'ADMIN' ? (
                           /* Pada laman Admin: Aksi Edit dan Hapus dihapus, hanya menampilkan tombol Rincian */
                           <button
@@ -637,7 +710,7 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                 <div className="p-3 rounded-xl border border-slate-200">
                   <span className="text-slate-500 block">Alokasi Anggaran</span>
                   <strong className="font-mono-tabular text-slate-900 text-sm">
@@ -649,61 +722,100 @@ export const MatriksTableView: React.FC<MatriksTableViewProps> = ({
                   <strong className="text-slate-900">{detailModalRow.sumber_pembiayaan}</strong>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200">
-                  <span className="text-slate-500 block">Sifat Bantuan</span>
-                  <strong className="text-slate-900">{detailModalRow.sifat_bantuan || '-'}</strong>
-                </div>
-                <div className="p-3 rounded-xl border border-slate-200">
-                  <span className="text-slate-500 block">Jumlah & Satuan Sasaran</span>
-                  <strong className="font-mono-tabular text-slate-900">
-                    {formatNumber(detailModalRow.jumlah_sasaran)}{' '}
-                    {detailModalRow.satuan_sasaran || 'KPM'}
+                  <span className="text-slate-500 block">Sifat & Lokasi Kegiatan</span>
+                  <strong className="text-slate-900 block">
+                    {detailModalRow.sifat_bantuan || '-'}
                   </strong>
-                  {detailModalRow.keterangan_sasaran && (
-                    <span className="block text-[11px] text-slate-500 mt-0.5">
-                      {detailModalRow.keterangan_sasaran}
-                    </span>
-                  )}
+                  <span className="text-[11px] text-slate-600 mt-0.5 block">
+                    Lokasi: {detailModalRow.lokasi || '-'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-200 sm:col-span-2 md:col-span-1">
+                  <span className="text-slate-500 block">Target & Rincian Sasaran</span>
+                  <strong className="text-slate-900 block leading-relaxed">
+                    {detailModalRow.keterangan_sasaran?.trim() ||
+                      `${formatNumber(detailModalRow.jumlah_sasaran)} ${
+                        detailModalRow.satuan_sasaran || 'KPM'
+                      }`}
+                  </strong>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200">
                   <span className="text-slate-500 block">Besaran Manfaat</span>
                   <strong className="text-slate-900">{detailModalRow.besaran_manfaat || '-'}</strong>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200">
-                  <span className="text-slate-500 block">Jenis & Durasi</span>
-                  <strong className="text-slate-900">
+                  <span className="text-slate-500 block">Jenis & Durasi Bantuan</span>
+                  <strong className="text-slate-900 block">
                     {detailModalRow.jenis_bantuan} ({detailModalRow.durasi_pemberian_bantuan})
                   </strong>
+                  {detailModalRow.keterangan_durasi_bantuan && (
+                    <span className="text-[11px] text-slate-600 mt-0.5 block">
+                      Ket. Durasi: {detailModalRow.keterangan_durasi_bantuan}
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Ringkasan Realisasi & Status Verifikasi Semester Aktif */}
-              {(() => {
-                const detailSem =
-                  selectedSemester === 1 ? detailModalRow.sem1 : detailModalRow.sem2;
-                const detailPct =
-                  selectedSemester === 1
-                    ? detailModalRow.persentase_realisasi_sem1
-                    : detailModalRow.persentase_realisasi_sem2;
-                return (
-                  <div className="p-4 rounded-2xl bg-[#F8FAFF] border border-blue-100 space-y-2 text-xs">
+              {/* Ringkasan Realisasi & Status Verifikasi (Semester 1 atau Semester 1 & 2) */}
+              <div
+                className={`grid grid-cols-1 ${
+                  selectedSemester === 2 ? 'md:grid-cols-2' : ''
+                } gap-4 text-xs`}
+              >
+                {/* Kartu Realisasi Semester 1 */}
+                <div className="p-4 rounded-2xl bg-[#F8FAFF] border border-blue-100 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-slate-800">
+                      Realisasi Semester 1 (TA {activePeriode.tahun}):{' '}
+                      <span className="font-mono-tabular text-[#1D4ED8]">
+                        {formatRupiah(detailModalRow.sem1.realisasi)} (
+                        {detailModalRow.persentase_realisasi_sem1.toFixed(1)}%)
+                      </span>
+                    </span>
+                    <StatusIndicator status={detailModalRow.sem1.status_verifikasi} />
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 text-slate-600">
+                    <strong className="text-slate-800 block mb-0.5">
+                      Rincian Realisasi Semester 1:
+                    </strong>
+                    {detailModalRow.sem1.rincian_realisasi?.trim() || '-'}
+                  </div>
+                  {detailModalRow.sem1.catatan_verifikator && (
+                    <p className="text-slate-600 bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80">
+                      <strong className="text-amber-900">Catatan Verifikator S1:</strong>{' '}
+                      {detailModalRow.sem1.catatan_verifikator}
+                    </p>
+                  )}
+                </div>
+
+                {/* Kartu Realisasi Semester 2 (Tampil jika pilihan awal Semester 2) */}
+                {selectedSemester === 2 && (
+                  <div className="p-4 rounded-2xl bg-[#F8FAFF] border border-indigo-100 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-bold text-slate-800">
-                        Realisasi Semester {selectedSemester} (TA {activePeriode.tahun}):{' '}
-                        <span className="font-mono-tabular text-[#1D4ED8]">
-                          {formatRupiah(detailSem.realisasi)} ({detailPct.toFixed(1)}%)
+                        Realisasi Semester 2 (TA {activePeriode.tahun}):{' '}
+                        <span className="font-mono-tabular text-indigo-700">
+                          {formatRupiah(detailModalRow.sem2.realisasi)} (
+                          {detailModalRow.persentase_realisasi_sem2.toFixed(1)}%)
                         </span>
                       </span>
-                      <StatusIndicator status={detailSem.status_verifikasi} />
+                      <StatusIndicator status={detailModalRow.sem2.status_verifikasi} />
                     </div>
-                    {detailSem.catatan_verifikator && (
-                      <p className="text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/80">
-                        <strong className="text-slate-800">Keterangan Verifikasi:</strong>{' '}
-                        {detailSem.catatan_verifikator}
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 text-slate-600">
+                      <strong className="text-slate-800 block mb-0.5">
+                        Rincian Realisasi Semester 2:
+                      </strong>
+                      {detailModalRow.sem2.rincian_realisasi?.trim() || '-'}
+                    </div>
+                    {detailModalRow.sem2.catatan_verifikator && (
+                      <p className="text-slate-600 bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80">
+                        <strong className="text-amber-900">Catatan Verifikator S2:</strong>{' '}
+                        {detailModalRow.sem2.catatan_verifikator}
                       </p>
                     )}
                   </div>
-                );
-              })()}
+                )}
+              </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
                 <button

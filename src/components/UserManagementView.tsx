@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { AuthUser, InstansiKategori } from '../types/oppkpke';
 import { INSTANSI_KATEGORI_LIST } from '../data/bloraSeedData';
-import { formatOpdEmail } from '../services/databaseService';
+import { DatabaseService, formatOpdEmail } from '../services/databaseService';
 
 interface UserManagementViewProps {
   users: AuthUser[];
@@ -78,6 +78,14 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   // Modal Konfirmasi Hapus User Tunggal
   const [deletingUser, setDeletingUser] = useState<AuthUser | null>(null);
+
+  // State Sinkronisasi Massal ke Firebase Authentication
+  const [isSyncingAuth, setIsSyncingAuth] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{
+    current: number;
+    total: number;
+    email: string;
+  } | null>(null);
 
   // Modal Reset Semua Akun / Input Massal
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -208,6 +216,35 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text);
       onShowToast('success', `Kredensial "${u.username}" (${userEmail}) disalin ke clipboard.`);
+    }
+  };
+
+  const handleSyncAllToFirebaseAuth = async () => {
+    if (isSyncingAuth) return;
+    setIsSyncingAuth(true);
+    setSyncProgress({
+      current: 0,
+      total: normalizedUsers.length,
+      email: 'Memulai sinkronisasi...',
+    });
+    try {
+      const result = await DatabaseService.syncAllUsersToFirebaseAuth(
+        (current, total, email) => {
+          setSyncProgress({ current, total, email });
+        }
+      );
+      onShowToast(
+        'success',
+        `Sinkronisasi selesai: ${result.total} akun diproses (${result.created} baru didaftarkan ke Firebase Auth, ${result.alreadyExists} sudah terdaftar).`
+      );
+    } catch {
+      onShowToast(
+        'error',
+        'Terjadi kendala saat menyinkronkan sebagian akun ke Firebase Authentication.'
+      );
+    } finally {
+      setIsSyncingAuth(false);
+      setSyncProgress(null);
     }
   };
 
@@ -450,8 +487,31 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
             type="button"
+            disabled={isSyncingAuth}
+            onClick={() => void handleSyncAllToFirebaseAuth()}
+            className={`px-4 py-2.5 rounded-2xl border text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0 ${
+              isSyncingAuth
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-300 cursor-wait'
+                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200 cursor-pointer'
+            }`}
+            title="Daftarkan seluruh akun OPD yang ada di tabel ini ke Firebase Console > Authentication > Users"
+          >
+            <RefreshCw
+              className={`w-4 h-4 text-emerald-600 ${
+                isSyncingAuth ? 'animate-spin' : ''
+              }`}
+            />
+            <span>
+              {isSyncingAuth && syncProgress
+                ? `Menyinkronkan Auth (${syncProgress.current}/${syncProgress.total})...`
+                : 'Sinkronkan ke Firebase Auth'}
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleOpenResetModal}
-            className="px-4 py-2.5 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer"
+            className="px-4 py-2.5 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <RefreshCw className="w-4 h-4 text-amber-600" />
             <span>Reset / Input Massal Semua Akun</span>
@@ -460,13 +520,43 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           <button
             type="button"
             onClick={() => handleOpenAddModal()}
-            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#2563EB] to-[#1D4ED8] hover:from-[#1D4ED8] hover:to-[#1E40AF] text-white text-xs font-bold shadow-[0_8px_20px_-6px_rgba(37,99,235,0.55)] flex items-center gap-2 transition-all cursor-pointer"
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#2563EB] to-[#1D4ED8] hover:from-[#1D4ED8] hover:to-[#1E40AF] text-white text-xs font-bold shadow-[0_8px_20px_-6px_rgba(37,99,235,0.55)] flex items-center gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Tambah User Baru</span>
           </button>
         </div>
       </div>
+
+      {/* BANNER PROGRES SINKRONISASI FIREBASE AUTHENTICATION */}
+      {isSyncingAuth && syncProgress && (
+        <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <RefreshCw className="w-5 h-5 text-emerald-600 animate-spin shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-emerald-950">
+                Menyinkronkan Akun User ke Firebase Authentication ({syncProgress.current} dari{' '}
+                {syncProgress.total} akun)
+              </p>
+              <p className="text-[11px] text-emerald-800 font-mono-tabular mt-0.5">
+                Memproses: {syncProgress.email}
+              </p>
+            </div>
+          </div>
+          <div className="w-full sm:w-56 h-2.5 bg-emerald-200/70 rounded-full overflow-hidden shrink-0">
+            <div
+              className="h-full bg-emerald-600 transition-all duration-200 rounded-full"
+              style={{
+                width: `${
+                  syncProgress.total > 0
+                    ? Math.round((syncProgress.current / syncProgress.total) * 100)
+                    : 0
+                }%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* KARTU RINGKASAN KATEGORI (TERMASUK KATEGORI ADMIN) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">

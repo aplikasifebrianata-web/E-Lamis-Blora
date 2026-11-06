@@ -78,26 +78,33 @@ interface MatrixInputModalProps {
       besaran_manfaat: string;
       jenis_bantuan: string;
       durasi_pemberian_bantuan: string;
+      keterangan_durasi_bantuan?: string;
     };
-    sem1Input?: { realisasi: number; action: 'draft' | 'submit' };
-    sem2Input?: { realisasi: number; action: 'draft' | 'submit' };
+    sem1Input?: {
+      realisasi: number;
+      rincian_realisasi?: string;
+      action: 'draft' | 'submit';
+    };
+    sem2Input?: {
+      realisasi: number;
+      rincian_realisasi?: string;
+      action: 'draft' | 'submit';
+    };
   }) => void;
 }
 
-const SATUAN_SASARAN_PRESETS = [
-  'KPM',
-  'Jiwa',
-  'Orang',
-  'Unit / Rumah',
-  'Kelompok',
-  'Desa / Kelurahan',
-  'Lembaga',
-];
-
-const DURASI_SATUAN_LIST = ['kali', 'hari', 'minggu', 'bulan', 'tahun'] as const;
+const DURASI_SATUAN_LIST = [
+  'kali',
+  'kegiatan',
+  'hari',
+  'minggu',
+  'bulan',
+  'tahun',
+] as const;
 
 const DURASI_PRESET_ITEMS: { label: string; angka: number; satuan: string }[] = [
   { label: '1 kali', angka: 1, satuan: 'kali' },
+  { label: '1 kegiatan', angka: 1, satuan: 'kegiatan' },
   { label: '3 bulan', angka: 3, satuan: 'bulan' },
   { label: '6 bulan', angka: 6, satuan: 'bulan' },
   { label: '1 tahun', angka: 1, satuan: 'tahun' },
@@ -107,12 +114,13 @@ function parseDurasiString(raw?: string): { angka: number; satuan: string } {
   if (!raw) return { angka: 1, satuan: 'tahun' };
   const lower = raw.trim().toLowerCase();
   if (lower.includes('satu kali')) return { angka: 1, satuan: 'kali' };
+  if (lower.includes('satu kegiatan')) return { angka: 1, satuan: 'kegiatan' };
   if (lower.includes('tiga bulan')) return { angka: 3, satuan: 'bulan' };
   if (lower.includes('enam bulan')) return { angka: 6, satuan: 'bulan' };
   if (lower.includes('dua belas bulan') || lower.includes('setahun')) {
     return { angka: 1, satuan: 'tahun' };
   }
-  const match = lower.match(/^(\d+)\s*(kali|hari|minggu|bulan|tahun)/i);
+  const match = lower.match(/^(\d+)\s*(kali|kegiatan|hari|minggu|bulan|tahun)/i);
   if (match) {
     return {
       angka: Math.max(1, parseInt(match[1], 10) || 1),
@@ -120,6 +128,16 @@ function parseDurasiString(raw?: string): { angka: number; satuan: string } {
     };
   }
   return { angka: 1, satuan: 'tahun' };
+}
+
+function extractNumericSasaranFromDescription(desc: string, fallback = 0): number {
+  const cleaned = desc.replace(/\./g, '');
+  const match = cleaned.match(/\d+/);
+  if (match) {
+    const parsed = parseInt(match[0], 10);
+    if (!Number.isNaN(parsed) && parsed >= 0) return parsed;
+  }
+  return fallback;
 }
 
 export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
@@ -145,7 +163,7 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
   const [kegiatan, setKegiatan] = useState<string>('');
   const [subKegiatan, setSubKegiatan] = useState<string>('');
 
-  // Langkah 2: Aktivitas Real & Anggaran (Sumber Pendanaan bisa dipilih lebih dari 1)
+  // Langkah 2: Aktivitas Real & Anggaran (Sumber Pendanaan bisa dipilih lebih dari 1, termasuk APBDP)
   const [aktivitasLangsung, setAktivitasLangsung] = useState<string>('');
   const [aktivitasTidakLangsung, setAktivitasTidakLangsung] = useState<string>('');
   const [aktivitasPenunjang, setAktivitasPenunjang] = useState<string>('');
@@ -153,25 +171,24 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
   const [selectedSumberList, setSelectedSumberList] = useState<string[]>(['APBD Kabupaten']);
   const [customSumberInput, setCustomSumberInput] = useState<string>('');
 
-  // Langkah 3: Karakteristik & Sasaran Bantuan (Dengan Satuan & Keterangan Sasaran, Durasi Angka & Satuan)
+  // Langkah 3: Karakteristik, Lokasi Kegiatan & Sasaran Bantuan
   const [sifatBantuan, setSifatBantuan] = useState<SifatBantuan>('Berkelanjutan');
-  const [lokasiKecamatan, setLokasiKecamatan] = useState<string>('Kabupaten Blora');
-  const [lokasiDesa, setLokasiDesa] = useState<string>('');
-  const [lokasiSpesifik, setLokasiSpesifik] = useState<string>('');
-  const [jumlahSasaran, setJumlahSasaran] = useState<number>(0);
-  const [satuanSasaran, setSatuanSasaran] = useState<string>('KPM');
-  const [keteranganSasaran, setKeteranganSasaran] = useState<string>('');
+  const [lokasiKegiatan, setLokasiKegiatan] = useState<string>('Kabupaten Blora');
+  const [deskripsiSasaran, setDeskripsiSasaran] = useState<string>('');
   const [besaranManfaat, setBesaranManfaat] = useState<string>('');
   const [jenisBantuan, setJenisBantuan] = useState<string>('Bantuan sosial');
   const [customJenisBantuan, setCustomJenisBantuan] = useState<string>('');
   const [durasiAngka, setDurasiAngka] = useState<number>(1);
   const [durasiSatuan, setDurasiSatuan] = useState<string>('tahun');
+  const [keteranganDurasiBantuan, setKeteranganDurasiBantuan] = useState<string>('');
 
   const durasiBantuan = `${Math.max(1, durasiAngka || 1)} ${durasiSatuan}`;
 
-  // Langkah 4: Realisasi Semester 1 & Semester 2
+  // Langkah 4: Realisasi & Rincian Realisasi Semester 1 & Semester 2
   const [realisasiSem1, setRealisasiSem1] = useState<number>(0);
+  const [rincianRealisasiSem1, setRincianRealisasiSem1] = useState<string>('');
   const [realisasiSem2, setRealisasiSem2] = useState<number>(0);
+  const [rincianRealisasiSem2, setRincianRealisasiSem2] = useState<string>('');
 
   // Sinkronisasi data saat modal dibuka
   useEffect(() => {
@@ -200,12 +217,20 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
       setCustomSumberInput('');
 
       setSifatBantuan(initialRow.sifat_bantuan || 'Berkelanjutan');
-      setLokasiKecamatan(initialRow.lokasi_kecamatan || 'Kabupaten Blora');
-      setLokasiDesa(initialRow.lokasi_desa || '');
-      setLokasiSpesifik(initialRow.lokasi_spesifik || initialRow.lokasi || '');
-      setJumlahSasaran(initialRow.jumlah_sasaran ?? 0);
-      setSatuanSasaran(initialRow.satuan_sasaran || 'KPM');
-      setKeteranganSasaran(initialRow.keterangan_sasaran || '');
+      setLokasiKegiatan(
+        initialRow.lokasi ||
+          [initialRow.lokasi_kecamatan, initialRow.lokasi_desa, initialRow.lokasi_spesifik]
+            .filter(Boolean)
+            .join(' · ') ||
+          'Kabupaten Blora'
+      );
+
+      const initialDeskripsiSasaran =
+        initialRow.keterangan_sasaran?.trim() ||
+        (initialRow.jumlah_sasaran > 0
+          ? `${formatNumber(initialRow.jumlah_sasaran)} ${initialRow.satuan_sasaran || 'KPM'}`
+          : '');
+      setDeskripsiSasaran(initialDeskripsiSasaran);
       setBesaranManfaat(initialRow.besaran_manfaat || '');
 
       if (
@@ -222,8 +247,12 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
       const parsedDurasi = parseDurasiString(initialRow.durasi_pemberian_bantuan);
       setDurasiAngka(parsedDurasi.angka);
       setDurasiSatuan(parsedDurasi.satuan);
+      setKeteranganDurasiBantuan(initialRow.keterangan_durasi_bantuan || '');
+
       setRealisasiSem1(initialRow.sem1.realisasi || 0);
+      setRincianRealisasiSem1(initialRow.sem1.rincian_realisasi || '');
       setRealisasiSem2(initialRow.sem2.realisasi || 0);
+      setRincianRealisasiSem2(initialRow.sem2.rincian_realisasi || '');
     } else {
       // Default untuk Tambah Baris Baru oleh OPD atau Admin
       setSelectedOpdId(activeOpd.opd_id);
@@ -239,28 +268,20 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
       setSelectedSumberList(['APBD Kabupaten']);
       setCustomSumberInput('');
       setSifatBantuan('Berkelanjutan');
-      setLokasiKecamatan('Kabupaten Blora');
-      setLokasiDesa('');
-      setLokasiSpesifik('');
-      setJumlahSasaran(0);
-      setSatuanSasaran('KPM');
-      setKeteranganSasaran('');
+      setLokasiKegiatan('Kabupaten Blora');
+      setDeskripsiSasaran('');
       setBesaranManfaat('');
       setJenisBantuan('Bantuan sosial');
       setCustomJenisBantuan('');
       setDurasiAngka(1);
       setDurasiSatuan('tahun');
+      setKeteranganDurasiBantuan('');
       setRealisasiSem1(0);
+      setRincianRealisasiSem1('');
       setRealisasiSem2(0);
+      setRincianRealisasiSem2('');
     }
   }, [isOpen, initialRow, activeOpd]);
-
-  const combinedLokasi = useMemo(() => {
-    const parts = [lokasiKecamatan, lokasiDesa, lokasiSpesifik]
-      .map((s) => s.trim())
-      .filter(Boolean);
-    return parts.join(' · ') || 'Kabupaten Blora';
-  }, [lokasiKecamatan, lokasiDesa, lokasiSpesifik]);
 
   const finalSumberPembiayaan = useMemo(() => {
     if (selectedSumberList.length === 0) return 'APBD Kabupaten';
@@ -312,13 +333,15 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
   const step2Done = Boolean(hasAktivitas && alokasiAnggaran > 0 && selectedSumberList.length > 0);
   const step3Done = Boolean(
     sifatBantuan &&
-      jumlahSasaran >= 0 &&
-      satuanSasaran.trim() &&
+      lokasiKegiatan.trim() &&
+      deskripsiSasaran.trim() &&
       besaranManfaat.trim() &&
       finalJenisBantuan.trim() &&
       durasiBantuan.trim()
   );
-  const step4Done = Boolean(activeSemRealisasi > 0);
+  const step4Done = Boolean(
+    selectedSemester === 1 ? realisasiSem1 > 0 : realisasiSem1 > 0 || realisasiSem2 > 0
+  );
 
   // Progres Bar Kelengkapan Pengisian Matriks (0 - 100%)
   const modalProgressPercent = useMemo(() => {
@@ -329,7 +352,7 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
     if (hasAktivitas) score += 1;
     if (alokasiAnggaran > 0) score += 1;
     if (selectedSumberList.length > 0) score += 1;
-    if (jumlahSasaran > 0 && satuanSasaran.trim()) score += 1;
+    if (deskripsiSasaran.trim() && lokasiKegiatan.trim()) score += 1;
     if (besaranManfaat.trim() && finalJenisBantuan.trim()) score += 1;
     if (activeSemRealisasi > 0) score += 1;
     return Math.round((score / maxScore) * 100);
@@ -341,8 +364,8 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
     hasAktivitas,
     alokasiAnggaran,
     selectedSumberList,
-    jumlahSasaran,
-    satuanSasaran,
+    deskripsiSasaran,
+    lokasiKegiatan,
     besaranManfaat,
     finalJenisBantuan,
     activeSemRealisasi,
@@ -368,14 +391,20 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
     {
       num: 3 as const,
       title: 'Karakteristik & Sasaran',
-      subtitle: 'Sasaran, satuan & manfaat',
+      subtitle: 'Lokasi, sasaran & durasi',
       icon: <MapPin className="w-4 h-4" />,
       done: step3Done,
     },
     {
       num: 4 as const,
-      title: `Realisasi Semester ${selectedSemester}`,
-      subtitle: selectedSemester === 1 ? 'Periode Januari – Juni' : 'Periode Juli – Desember',
+      title:
+        selectedSemester === 1
+          ? 'Realisasi Semester 1'
+          : 'Realisasi Sem 1 & Sem 2',
+      subtitle:
+        selectedSemester === 1
+          ? 'Periode Januari – Juni'
+          : 'Semester 1 & Semester 2',
       icon: <CalendarRange className="w-4 h-4" />,
       done: step4Done,
     },
@@ -393,6 +422,13 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
     sem2Action: 'draft' | 'submit' | 'none',
     closeAfter = true
   ) => {
+    const cleanLokasi = lokasiKegiatan.trim() || 'Kabupaten Blora';
+    const cleanDeskripsiSasaran = deskripsiSasaran.trim();
+    const numericSasaran = extractNumericSasaranFromDescription(
+      cleanDeskripsiSasaran,
+      initialRow?.jumlah_sasaran ?? 0
+    );
+
     onSave({
       matrix_id: initialRow ? initialRow.matrix_id : null,
       periode_id: activePeriode.periode_id,
@@ -409,24 +445,33 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
         alokasi_anggaran: alokasiAnggaran,
         sumber_pembiayaan: finalSumberPembiayaan,
         sifat_bantuan: sifatBantuan,
-        lokasi: combinedLokasi,
-        lokasi_kecamatan: lokasiKecamatan,
-        lokasi_desa: lokasiDesa,
-        lokasi_spesifik: lokasiSpesifik,
-        jumlah_sasaran: jumlahSasaran,
-        satuan_sasaran: satuanSasaran.trim() || 'KPM',
-        keterangan_sasaran: keteranganSasaran.trim(),
+        lokasi: cleanLokasi,
+        lokasi_kecamatan: cleanLokasi,
+        lokasi_desa: '',
+        lokasi_spesifik: cleanLokasi,
+        jumlah_sasaran: numericSasaran,
+        satuan_sasaran: initialRow?.satuan_sasaran || 'KPM',
+        keterangan_sasaran: cleanDeskripsiSasaran,
         besaran_manfaat: besaranManfaat,
         jenis_bantuan: finalJenisBantuan,
         durasi_pemberian_bantuan: durasiBantuan,
+        keterangan_durasi_bantuan: keteranganDurasiBantuan.trim(),
       },
       sem1Input:
         !isSem1Locked && sem1Action !== 'none'
-          ? { realisasi: realisasiSem1, action: sem1Action }
+          ? {
+              realisasi: realisasiSem1,
+              rincian_realisasi: rincianRealisasiSem1.trim(),
+              action: sem1Action,
+            }
           : undefined,
       sem2Input:
         !isSem2Locked && sem2Action !== 'none'
-          ? { realisasi: realisasiSem2, action: sem2Action }
+          ? {
+              realisasi: realisasiSem2,
+              rincian_realisasi: rincianRealisasiSem2.trim(),
+              action: sem2Action,
+            }
           : undefined,
     });
 
@@ -925,7 +970,7 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                   </motion.div>
                 )}
 
-                {/* LANGKAH 3: KARAKTERISTIK & SASARAN BANTUAN (Dengan Satuan & Keterangan Sasaran, Tanpa Kotak Lokasi) */}
+                {/* LANGKAH 3: KARAKTERISTIK & SASARAN BANTUAN (Termasuk Lokasi Kegiatan, Deskripsi Sasaran, dan Keterangan Durasi) */}
                 {currentStep === 3 && (
                   <motion.div
                     key="step-3"
@@ -935,114 +980,92 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                     transition={{ duration: 0.18 }}
                     className="space-y-5"
                   >
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Sifat Bantuan <span className="text-rose-600">*</span>
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {(['Berkelanjutan', 'Tidak Berkelanjutan'] as const).map((opt) => (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => setSifatBantuan(opt)}
-                            className={`px-4 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                              sifatBantuan === opt
-                                ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-xs'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            <span>{opt}</span>
-                            {sifatBantuan === opt && <CheckCircle2 className="w-4 h-4" />}
-                          </button>
-                        ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Sifat Bantuan <span className="text-rose-600">*</span>
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {(['Berkelanjutan', 'Tidak Berkelanjutan'] as const).map((opt) => (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() => setSifatBantuan(opt)}
+                              className={`px-4 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                                sifatBantuan === opt
+                                  ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-xs'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span>{opt}</span>
+                              {sifatBantuan === opt && <CheckCircle2 className="w-4 h-4" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Lokasi Kegiatan */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Lokasi Kegiatan <span className="text-rose-600">*</span>
+                        </label>
+                        <div className="relative">
+                          <MapPin className="w-4 h-4 text-[#2563EB] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={lokasiKegiatan}
+                            onChange={(e) => setLokasiKegiatan(e.target.value)}
+                            placeholder="Contoh: Kabupaten Blora / Kec. Blora, Desa Tempelan..."
+                            className="w-full pl-9 pr-3.5 py-2.5 text-xs font-medium text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {[
+                            'Kabupaten Blora',
+                            '16 Kecamatan se-Kabupaten Blora',
+                            ...KECAMATAN_BLORA.slice(0, 4).map((k) => `Kec. ${k}`),
+                          ].map((presetLok) => (
+                            <button
+                              key={presetLok}
+                              type="button"
+                              onClick={() => setLokasiKegiatan(presetLok)}
+                              className={`text-[10px] px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                                lokasiKegiatan === presetLok
+                                  ? 'bg-[#2563EB] text-white font-semibold'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-[#2563EB]'
+                              }`}
+                            >
+                              + {presetLok}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Panel Sasaran Penerima Manfaat (Jumlah + Satuan + Keterangan) */}
-                    <div className="p-4 rounded-2xl bg-[#F8FAFF] border border-blue-100 space-y-3.5">
+                    {/* Panel Target & Rincian Sasaran Penerima Manfaat (Kolom Ketikan Deskripsi Saja) */}
+                    <div className="p-4 rounded-2xl bg-[#F8FAFF] border border-blue-100 space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-slate-800">
-                          Target & Rincian Sasaran Penerima Manfaat
-                        </p>
-                        <span className="text-[11px] font-semibold text-[#2563EB]">
-                          {formatNumber(jumlahSasaran)} {satuanSasaran || 'KPM'}
-                          {keteranganSasaran.trim() ? ` — ${keteranganSasaran.trim()}` : ''}
+                        <label className="text-xs font-bold text-slate-800">
+                          Target & Rincian Sasaran Penerima Manfaat <span className="text-rose-600">*</span>
+                        </label>
+                        <span className="text-[11px] font-medium text-slate-500">
+                          Kolom Deskripsi Sasaran
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                        {/* Jumlah Sasaran */}
-                        <div className="md:col-span-3">
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                            Jumlah Sasaran <span className="text-rose-600">*</span>
-                          </label>
-                          <input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={jumlahSasaran}
-                            onChange={(e) =>
-                              setJumlahSasaran(
-                                e.target.value === ''
-                                  ? 0
-                                  : Math.max(0, parseInt(e.target.value, 10) || 0)
-                              )
-                            }
-                            placeholder="0"
-                            className="w-full px-3.5 py-2 text-sm font-mono-tabular font-bold text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                          />
-                        </div>
-
-                        {/* Satuan Sasaran */}
-                        <div className="md:col-span-4">
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                            Satuan Sasaran <span className="text-rose-600">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={satuanSasaran}
-                            onChange={(e) => setSatuanSasaran(e.target.value)}
-                            placeholder="Contoh: KPM / Jiwa / Orang / Unit"
-                            className="w-full px-3.5 py-2 text-xs font-semibold text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                          />
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {SATUAN_SASARAN_PRESETS.map((sat) => (
-                              <button
-                                key={sat}
-                                type="button"
-                                onClick={() => setSatuanSasaran(sat)}
-                                className={`text-[10px] px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
-                                  satuanSasaran === sat
-                                    ? 'bg-[#2563EB] text-white font-semibold'
-                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-blue-50 hover:text-[#2563EB]'
-                                }`}
-                              >
-                                {sat}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Keterangan Sasaran Penerima Manfaat */}
-                        <div className="md:col-span-5">
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                            Keterangan Sasaran Penerima Manfaat
-                          </label>
-                          <input
-                            type="text"
-                            value={keteranganSasaran}
-                            onChange={(e) => setKeteranganSasaran(e.target.value)}
-                            placeholder="Contoh: Keluarga miskin ekstrem Desil 1–2 P3KE / DTKS..."
-                            className="w-full px-3.5 py-2 text-xs text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                          />
-                          <p className="text-[10px] text-slate-400 mt-1">
-                            Jelaskan kriteria atau rincian kelompok sasaran penerima manfaat.
-                          </p>
-                        </div>
-                      </div>
+                      <textarea
+                        rows={3}
+                        value={deskripsiSasaran}
+                        onChange={(e) => setDeskripsiSasaran(e.target.value)}
+                        placeholder="Ketik deskripsi target dan rincian sasaran penerima manfaat (contoh: 250 KPM keluarga miskin ekstrem Desil 1–2 P3KE / DTKS di wilayah lokus kemiskinan)..."
+                        className="w-full px-3.5 py-2.5 text-xs text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] leading-relaxed"
+                      />
+                      <p className="text-[11px] text-slate-500">
+                        Tuliskan secara deskriptif jumlah/target serta kriteria kelompok sasaran penerima manfaat kegiatan.
+                      </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
                           Besaran Manfaat <span className="text-rose-600">*</span>
@@ -1052,7 +1075,7 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                           value={besaranManfaat}
                           onChange={(e) => setBesaranManfaat(e.target.value)}
                           placeholder="Rp300.000/orang atau 1 paket"
-                          className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl"
+                          className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                         />
                         <div className="flex flex-wrap gap-1 mt-1.5">
                           {BESARAN_MANFAAT_PRESETS.slice(0, 3).map((p) => (
@@ -1075,7 +1098,7 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                         <select
                           value={jenisBantuan}
                           onChange={(e) => setJenisBantuan(e.target.value)}
-                          className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl"
+                          className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                         >
                           {JENIS_BANTUAN_OPTIONS.map((j) => (
                             <option key={j} value={j}>
@@ -1089,72 +1112,88 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                             value={customJenisBantuan}
                             onChange={(e) => setCustomJenisBantuan(e.target.value)}
                             placeholder="Ketik jenis bantuan..."
-                            className="w-full mt-1.5 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                            className="w-full mt-1.5 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                           />
                         )}
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Durasi Pemberian Bantuan <span className="text-rose-600">*</span>
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={durasiAngka}
-                            onChange={(e) =>
-                              setDurasiAngka(
-                                e.target.value === ''
-                                  ? 1
-                                  : Math.max(1, parseInt(e.target.value, 10) || 1)
-                              )
-                            }
-                            placeholder="1"
-                            className="w-24 px-3 py-2 text-xs font-mono-tabular font-bold text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                          />
-                          <select
-                            value={durasiSatuan}
-                            onChange={(e) => setDurasiSatuan(e.target.value)}
-                            className="flex-1 px-3 py-2 text-xs font-semibold text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] cursor-pointer"
-                          >
-                            {DURASI_SATUAN_LIST.map((sat) => (
-                              <option key={sat} value={sat}>
-                                {sat}
-                              </option>
-                            ))}
-                          </select>
+                      <div className="space-y-2.5">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Durasi Pemberian Bantuan <span className="text-rose-600">*</span>
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={durasiAngka}
+                              onChange={(e) =>
+                                setDurasiAngka(
+                                  e.target.value === ''
+                                    ? 1
+                                    : Math.max(1, parseInt(e.target.value, 10) || 1)
+                                )
+                              }
+                              placeholder="1"
+                              className="w-20 px-3 py-2 text-xs font-mono-tabular font-bold text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                            />
+                            <select
+                              value={durasiSatuan}
+                              onChange={(e) => setDurasiSatuan(e.target.value)}
+                              className="flex-1 px-3 py-2 text-xs font-semibold text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] cursor-pointer"
+                            >
+                              {DURASI_SATUAN_LIST.map((sat) => (
+                                <option key={sat} value={sat}>
+                                  {sat}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {DURASI_PRESET_ITEMS.map((item) => {
+                              const isSelected =
+                                durasiAngka === item.angka && durasiSatuan === item.satuan;
+                              return (
+                                <button
+                                  key={item.label}
+                                  type="button"
+                                  onClick={() => {
+                                    setDurasiAngka(item.angka);
+                                    setDurasiSatuan(item.satuan);
+                                  }}
+                                  className={`text-[10px] px-2.5 py-0.5 rounded-md transition-colors cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-[#2563EB] text-white font-semibold'
+                                      : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-[#2563EB]'
+                                  }`}
+                                >
+                                  {item.label}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {DURASI_PRESET_ITEMS.map((item) => {
-                            const isSelected =
-                              durasiAngka === item.angka && durasiSatuan === item.satuan;
-                            return (
-                              <button
-                                key={item.label}
-                                type="button"
-                                onClick={() => {
-                                  setDurasiAngka(item.angka);
-                                  setDurasiSatuan(item.satuan);
-                                }}
-                                className={`text-[10px] px-2.5 py-0.5 rounded-md transition-colors cursor-pointer ${
-                                  isSelected
-                                    ? 'bg-[#2563EB] text-white font-semibold'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-[#2563EB]'
-                                }`}
-                              >
-                                {item.label}
-                              </button>
-                            );
-                          })}
+
+                        {/* Kolom Isian Tambahan Keterangan Durasi Bantuan */}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            Keterangan Durasi Bantuan
+                          </label>
+                          <input
+                            type="text"
+                            value={keteranganDurasiBantuan}
+                            onChange={(e) => setKeteranganDurasiBantuan(e.target.value)}
+                            placeholder="Ketik keterangan tambahan durasi bantuan..."
+                            className="w-full px-3.5 py-2 text-xs text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                          />
                         </div>
                       </div>
                     </div>
                   </motion.div>
                 )}
 
-                {/* LANGKAH 4: REALISASI SESUAI SEMESTER YANG DIPILIH DI AWAL */}
+                {/* LANGKAH 4: REALISASI SESUAI PILIHAN SEMESTER DI AWAL (Semester 1 = Sem 1 saja, Semester 2 = Sem 1 & Sem 2) */}
                 {currentStep === 4 && (
                   <motion.div
                     key="step-4"
@@ -1164,27 +1203,66 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                     transition={{ duration: 0.18 }}
                     className="space-y-5"
                   >
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900">
-                          Langkah 4: Realisasi Anggaran Semester {selectedSemester} (TA {activePeriode.tahun})
+                          {selectedSemester === 1
+                            ? `Langkah 4: Realisasi Anggaran Semester 1 (TA ${activePeriode.tahun})`
+                            : `Langkah 4: Realisasi Anggaran Semester 1 & Semester 2 (TA ${activePeriode.tahun})`}
                         </h3>
                         <p className="text-xs text-slate-500">
-                          Menampilkan realisasi khusus untuk <strong>Semester {selectedSemester} ({selectedSemester === 1 ? 'Januari – Juni' : 'Juli – Desember'})</strong> sesuai semester yang Anda pilih di awal.
+                          {selectedSemester === 1 ? (
+                            <>
+                              Menampilkan <strong>Realisasi Semester 1 (Januari – Juni)</strong> beserta rincian realisasi.
+                            </>
+                          ) : (
+                            <>
+                              Karena pilihan awal adalah <strong>Semester 2</strong>, ditampilkan <strong>Realisasi Semester 1 (Januari – Juni)</strong> dan <strong>Realisasi Semester 2 (Juli – Desember)</strong>.
+                            </>
+                          )}
                         </p>
                       </div>
                       <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        Semester {selectedSemester} Dibuka
+                        {selectedSemester === 1 ? 'Mode Semester 1' : 'Mode Semester 1 & 2'}
                       </span>
                     </div>
 
-                    {selectedSemester === 1 ? (
-                      /* Panel Tunggal Semester 1 (Januari-Juni) */
-                      <div className="p-6 rounded-2xl bg-[#F8FAFF] border border-blue-200/80 space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* Ringkasan Pagu Alokasi Anggaran Sub Kegiatan */}
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <span className="block text-xs font-medium text-slate-500">
+                          Pagu Alokasi Anggaran Sub Kegiatan
+                        </span>
+                        <p className="text-lg font-mono-tabular font-bold text-slate-900 mt-0.5">
+                          {formatRupiah(alokasiAnggaran)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[11px] font-semibold text-slate-500 block">
+                          Sumber Pendanaan
+                        </span>
+                        <span className="text-xs font-bold text-[#1D4ED8]">
+                          {finalSumberPembiayaan || '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`grid grid-cols-1 ${
+                        selectedSemester === 2 ? 'lg:grid-cols-2' : ''
+                      } gap-5`}
+                    >
+                      {/* PANEL REALISASI SEMESTER 1 (Selalu muncul baik saat pilih Semester 1 maupun Semester 2) */}
+                      <div className="p-5 rounded-2xl bg-[#F8FAFF] border border-blue-200/80 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <h4 className="text-base font-bold text-slate-900">
-                              Realisasi Semester 1 — TA {activePeriode.tahun}
+                            <h4 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                              <span>Realisasi Semester 1 — TA {activePeriode.tahun}</span>
+                              {isSem1Locked && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                                  <Lock className="w-3 h-3" /> Terkunci
+                                </span>
+                              )}
                             </h4>
                             <p className="text-xs text-slate-500">
                               Periode Pelaporan: Januari – Juni {activePeriode.tahun}
@@ -1197,23 +1275,12 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
 
                         {initialRow?.sem1.catatan_verifikator && (
                           <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                            <strong>Catatan Verifikator Semester 1:</strong> {initialRow.sem1.catatan_verifikator}
+                            <strong>Catatan Verifikator Semester 1:</strong>{' '}
+                            {initialRow.sem1.catatan_verifikator}
                           </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start pt-1">
-                          <div className="p-4 rounded-xl bg-white border border-slate-200/80">
-                            <span className="block text-xs font-medium text-slate-500">
-                              Pagu Alokasi Anggaran Sub Kegiatan
-                            </span>
-                            <p className="text-lg font-mono-tabular font-bold text-slate-900 mt-1">
-                              {formatRupiah(alokasiAnggaran)}
-                            </p>
-                            <span className="text-[11px] text-slate-400">
-                              Sumber: {finalSumberPembiayaan}
-                            </span>
-                          </div>
-
+                        <div className="space-y-3.5 pt-1">
                           <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                               Nominal Realisasi Semester 1 (Rp) <span className="text-rose-600">*</span>
@@ -1225,16 +1292,26 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                               <input
                                 type="text"
                                 inputMode="numeric"
+                                disabled={isSem1Locked}
                                 value={realisasiSem1 > 0 ? formatNumber(realisasiSem1) : ''}
                                 onChange={(e) =>
                                   setRealisasiSem1(parseNumericInput(e.target.value))
                                 }
                                 placeholder="0"
-                                className="w-full pl-10 pr-4 py-3 text-base font-mono-tabular font-bold rounded-xl border bg-white text-slate-900 border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                                className={`w-full pl-10 pr-4 py-2.5 text-base font-mono-tabular font-bold rounded-xl border ${
+                                  isSem1Locked
+                                    ? 'bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed'
+                                    : 'bg-white text-slate-900 border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2563EB]'
+                                }`}
                               />
                             </div>
                             <div className="flex justify-between text-xs text-slate-500 mt-1.5">
-                              <span>Terbilang: <strong className="text-slate-800">{formatRupiah(realisasiSem1)}</strong></span>
+                              <span>
+                                Terbilang:{' '}
+                                <strong className="text-slate-800">
+                                  {formatRupiah(realisasiSem1)}
+                                </strong>
+                              </span>
                               <span className="font-mono-tabular font-bold text-[#2563EB]">
                                 Capaian S1:{' '}
                                 {alokasiAnggaran > 0
@@ -1243,6 +1320,25 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                               </span>
                             </div>
                           </div>
+
+                          {/* Kolom Rincian Realisasi Semester 1 */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">
+                              Rincian Realisasi Semester 1
+                            </label>
+                            <textarea
+                              rows={3}
+                              disabled={isSem1Locked}
+                              value={rincianRealisasiSem1}
+                              onChange={(e) => setRincianRealisasiSem1(e.target.value)}
+                              placeholder="Ketik rincian realisasi Semester 1 (misal: Terealisasi penyaluran untuk 125 KPM pada tahap I di 8 kecamatan)..."
+                              className={`w-full px-3.5 py-2 text-xs rounded-xl border leading-relaxed ${
+                                isSem1Locked
+                                  ? 'bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed'
+                                  : 'bg-white text-slate-900 border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2563EB]'
+                              }`}
+                            />
+                          </div>
                         </div>
 
                         {sem1Logs.length > 0 && (
@@ -1250,9 +1346,12 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                             <p className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
                               <History className="w-3.5 h-3.5" /> Histori Perubahan Semester 1
                             </p>
-                            <div className="space-y-1.5 max-h-28 overflow-y-auto text-[11px] text-slate-600">
+                            <div className="space-y-1.5 max-h-24 overflow-y-auto text-[11px] text-slate-600">
                               {sem1Logs.slice(0, 3).map((l) => (
-                                <div key={l.log_id} className="bg-white p-2 rounded-lg border border-slate-100">
+                                <div
+                                  key={l.log_id}
+                                  className="bg-white p-2 rounded-lg border border-slate-100"
+                                >
                                   <strong>{l.aksi}</strong> · {formatDateTimeID(l.created_at)}
                                 </div>
                               ))}
@@ -1260,89 +1359,117 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                           </div>
                         )}
                       </div>
-                    ) : (
-                      /* Panel Tunggal Semester 2 (Juli-Desember) */
-                      <div className="p-6 rounded-2xl bg-[#F8FAFF] border border-indigo-200/80 space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <h4 className="text-base font-bold text-slate-900">
-                              Realisasi Semester 2 — TA {activePeriode.tahun}
-                            </h4>
-                            <p className="text-xs text-slate-500">
-                              Periode Pelaporan: Juli – Desember {activePeriode.tahun}
-                            </p>
-                          </div>
-                          <StatusIndicator
-                            status={initialRow?.sem2.status_verifikasi || 'Belum Diisi'}
-                          />
-                        </div>
 
-                        {initialRow?.sem2.catatan_verifikator && (
-                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                            <strong>Catatan Verifikator Semester 2:</strong> {initialRow.sem2.catatan_verifikator}
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start pt-1">
-                          <div className="p-4 rounded-xl bg-white border border-slate-200/80">
-                            <span className="block text-xs font-medium text-slate-500">
-                              Pagu Alokasi Anggaran Sub Kegiatan
-                            </span>
-                            <p className="text-lg font-mono-tabular font-bold text-slate-900 mt-1">
-                              {formatRupiah(alokasiAnggaran)}
-                            </p>
-                            <span className="text-[11px] text-slate-400">
-                              Sumber: {finalSumberPembiayaan}
-                            </span>
+                      {/* PANEL REALISASI SEMESTER 2 (Hanya muncul jika dipilih Semester 2) */}
+                      {selectedSemester === 2 && (
+                        <div className="p-5 rounded-2xl bg-[#F8FAFF] border border-indigo-200/80 space-y-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <h4 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                                <span>Realisasi Semester 2 — TA {activePeriode.tahun}</span>
+                                {isSem2Locked && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                                    <Lock className="w-3 h-3" /> Terkunci
+                                  </span>
+                                )}
+                              </h4>
+                              <p className="text-xs text-slate-500">
+                                Periode Pelaporan: Juli – Desember {activePeriode.tahun}
+                              </p>
+                            </div>
+                            <StatusIndicator
+                              status={initialRow?.sem2.status_verifikasi || 'Belum Diisi'}
+                            />
                           </div>
 
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                              Nominal Realisasi Semester 2 (Rp) <span className="text-rose-600">*</span>
-                            </label>
-                            <div className="relative">
-                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                                Rp
-                              </span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={realisasiSem2 > 0 ? formatNumber(realisasiSem2) : ''}
-                                onChange={(e) =>
-                                  setRealisasiSem2(parseNumericInput(e.target.value))
-                                }
-                                placeholder="0"
-                                className="w-full pl-10 pr-4 py-3 text-base font-mono-tabular font-bold rounded-xl border bg-white text-slate-900 border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                          {initialRow?.sem2.catatan_verifikator && (
+                            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                              <strong>Catatan Verifikator Semester 2:</strong>{' '}
+                              {initialRow.sem2.catatan_verifikator}
+                            </div>
+                          )}
+
+                          <div className="space-y-3.5 pt-1">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Nominal Realisasi Semester 2 (Rp) <span className="text-rose-600">*</span>
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                                  Rp
+                                </span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  disabled={isSem2Locked}
+                                  value={realisasiSem2 > 0 ? formatNumber(realisasiSem2) : ''}
+                                  onChange={(e) =>
+                                    setRealisasiSem2(parseNumericInput(e.target.value))
+                                  }
+                                  placeholder="0"
+                                  className={`w-full pl-10 pr-4 py-2.5 text-base font-mono-tabular font-bold rounded-xl border ${
+                                    isSem2Locked
+                                      ? 'bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed'
+                                      : 'bg-white text-slate-900 border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600'
+                                  }`}
+                                />
+                              </div>
+                              <div className="flex justify-between text-xs text-slate-500 mt-1.5">
+                                <span>
+                                  Terbilang:{' '}
+                                  <strong className="text-slate-800">
+                                    {formatRupiah(realisasiSem2)}
+                                  </strong>
+                                </span>
+                                <span className="font-mono-tabular font-bold text-indigo-700">
+                                  Capaian S2:{' '}
+                                  {alokasiAnggaran > 0
+                                    ? `${((realisasiSem2 / alokasiAnggaran) * 100).toFixed(1)}%`
+                                    : '0%'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Kolom Rincian Realisasi Semester 2 */}
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                Rincian Realisasi Semester 2
+                              </label>
+                              <textarea
+                                rows={3}
+                                disabled={isSem2Locked}
+                                value={rincianRealisasiSem2}
+                                onChange={(e) => setRincianRealisasiSem2(e.target.value)}
+                                placeholder="Ketik rincian realisasi Semester 2 (misal: Penyaluran tahap akhir untuk 250 KPM telah selesai 100% sesuai target)..."
+                                className={`w-full px-3.5 py-2 text-xs rounded-xl border leading-relaxed ${
+                                  isSem2Locked
+                                    ? 'bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed'
+                                    : 'bg-white text-slate-900 border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600'
+                                }`}
                               />
                             </div>
-                            <div className="flex justify-between text-xs text-slate-500 mt-1.5">
-                              <span>Terbilang: <strong className="text-slate-800">{formatRupiah(realisasiSem2)}</strong></span>
-                              <span className="font-mono-tabular font-bold text-indigo-700">
-                                Capaian S2:{' '}
-                                {alokasiAnggaran > 0
-                                  ? `${((realisasiSem2 / alokasiAnggaran) * 100).toFixed(1)}%`
-                                  : '0%'}
-                              </span>
-                            </div>
                           </div>
-                        </div>
 
-                        {sem2Logs.length > 0 && (
-                          <div className="pt-3 border-t border-slate-200/60">
-                            <p className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
-                              <History className="w-3.5 h-3.5" /> Histori Perubahan Semester 2
-                            </p>
-                            <div className="space-y-1.5 max-h-28 overflow-y-auto text-[11px] text-slate-600">
-                              {sem2Logs.slice(0, 3).map((l) => (
-                                <div key={l.log_id} className="bg-white p-2 rounded-lg border border-slate-100">
-                                  <strong>{l.aksi}</strong> · {formatDateTimeID(l.created_at)}
-                                </div>
-                              ))}
+                          {sem2Logs.length > 0 && (
+                            <div className="pt-3 border-t border-slate-200/60">
+                              <p className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
+                                <History className="w-3.5 h-3.5" /> Histori Perubahan Semester 2
+                              </p>
+                              <div className="space-y-1.5 max-h-24 overflow-y-auto text-[11px] text-slate-600">
+                                {sem2Logs.slice(0, 3).map((l) => (
+                                  <div
+                                    key={l.log_id}
+                                    className="bg-white p-2 rounded-lg border border-slate-100"
+                                  >
+                                    <strong>{l.aksi}</strong> · {formatDateTimeID(l.created_at)}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1393,7 +1520,11 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                       type="button"
                       onClick={() =>
                         triggerSave(
-                          selectedSemester === 1 ? 'draft' : 'none',
+                          selectedSemester === 1
+                            ? 'draft'
+                            : !isSem1Locked
+                            ? 'draft'
+                            : 'none',
                           selectedSemester === 2 ? 'draft' : 'none',
                           true
                         )
@@ -1401,13 +1532,23 @@ export const MatrixInputModal: React.FC<MatrixInputModalProps> = ({
                       className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-[#1D4ED8] bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors cursor-pointer"
                     >
                       <Save className="w-4 h-4" />
-                      <span>Simpan Draft (Semester {selectedSemester})</span>
+                      <span>
+                        {selectedSemester === 1
+                          ? 'Simpan Draft (Semester 1)'
+                          : 'Simpan Draft (Semester 1 & 2)'}
+                      </span>
                     </button>
                     <button
                       type="button"
                       onClick={() =>
                         triggerSave(
-                          selectedSemester === 1 ? 'submit' : 'none',
+                          selectedSemester === 1
+                            ? 'submit'
+                            : !isSem1Locked
+                            ? initialRow?.sem1.status_verifikasi === 'Menunggu Verifikasi'
+                              ? 'submit'
+                              : 'draft'
+                            : 'none',
                           selectedSemester === 2 ? 'submit' : 'none',
                           true
                         )
